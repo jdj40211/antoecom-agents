@@ -16,48 +16,24 @@ import {
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { AGENT_CATEGORIES } from '@/lib/utils/constants'
+import { getAllAgents } from '@/lib/agents/catalog'
 import { useUIStore } from '@/lib/store/ui'
 import { Logo } from './Logo'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 
-const MOCK_AGENTS: Record<string, { slug: string; name: string }[]> = {
-  copy: [
-    { slug: 'content-engine', name: 'Content Engine' },
-    { slug: 'ugc-scripts', name: 'UGC Scripts' },
-    { slug: 'caption-generator', name: 'Caption Generator' },
-    { slug: 'hook-writer', name: 'Hook Writer' },
-  ],
-  ads: [
-    { slug: 'meta-doctor', name: 'Meta Doctor' },
-    { slug: 'ad-copy-generator', name: 'Ad Copy Generator' },
-    { slug: 'audience-analyzer', name: 'Audience Analyzer' },
-  ],
-  research: [
-    { slug: 'product-hunter', name: 'Product Hunter' },
-    { slug: 'competitor-watch', name: 'Competitor Watch' },
-    { slug: 'niche-analyzer', name: 'Niche Analyzer' },
-  ],
-  ugc: [
-    { slug: 'image-prompts', name: 'Image Prompts' },
-    { slug: 'broll-generator', name: 'B-Roll Generator' },
-  ],
-  ecommerce: [
-    { slug: 'shopify-assistant', name: 'Shopify Assistant' },
-    { slug: 'logistics-tracker', name: 'Logistics Tracker' },
-    { slug: 'supplier-finder', name: 'Supplier Finder' },
-    { slug: 'product-descriptions', name: 'Product Descriptions' },
-  ],
-  analytics: [
-    { slug: 'performance-tracker', name: 'Performance Tracker' },
-    { slug: 'roi-calculator', name: 'ROI Calculator' },
-  ],
-  strategy: [
-    { slug: 'business-planner', name: 'Business Planner' },
-    { slug: 'launch-checklist', name: 'Launch Checklist' },
-  ],
+function getAgentsByCategory(): Record<string, { slug: string; name: string }[]> {
+  const all = getAllAgents()
+  const grouped: Record<string, { slug: string; name: string }[]> = {}
+  for (const agent of all) {
+    if (!grouped[agent.category]) grouped[agent.category] = []
+    grouped[agent.category].push({ slug: agent.slug, name: agent.name })
+  }
+  return grouped
 }
+
+const AGENTS_BY_CATEGORY = getAgentsByCategory()
 
 const BOTTOM_LINKS = [
   { href: '/history', label: 'Historial', icon: History },
@@ -121,7 +97,7 @@ export function AppSidebar() {
         </div>
 
         {AGENT_CATEGORIES.map((cat) => {
-          const agents = MOCK_AGENTS[cat.id] || []
+          const agents = AGENTS_BY_CATEGORY[cat.id] || []
           const isExpanded = expandedCategories.has(cat.id) && !sidebarCollapsed
           const Icon = cat.icon
           const hasActiveChild = agents.some((a) => pathname === `/agents/${a.slug}`)

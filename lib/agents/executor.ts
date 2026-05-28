@@ -7,6 +7,19 @@ import { openrouterProvider } from './providers/openrouter'
 
 export type ProviderName = 'anthropic' | 'openai' | 'google' | 'openrouter'
 
+type ModelTier = 'economy' | 'standard' | 'premium'
+
+interface TierConfig {
+  maxTokens: number
+  temperature: number
+}
+
+const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
+  economy: { maxTokens: 2048, temperature: 0.7 },
+  standard: { maxTokens: 4096, temperature: 0.6 },
+  premium: { maxTokens: 6144, temperature: 0.4 },
+}
+
 /**
  * Determine which provider to use based on the model string prefix.
  */
@@ -47,13 +60,15 @@ export function executeAgent(params: ExecuteAgentParams): ReadableStream<Uint8Ar
   const providerName = resolveProvider(model)
   const provider = getProviderInstance(providerName)
 
+  const tierConfig = TIER_CONFIGS[params.agent.modelTier]
+
   const config: ProviderConfig = {
     apiKey: params.apiKey,
     model,
     systemPrompt: params.systemPrompt,
     userPrompt: params.userPrompt,
-    maxTokens: 4096,
-    temperature: 0.7,
+    maxTokens: tierConfig.maxTokens,
+    temperature: tierConfig.temperature,
   }
 
   return provider.stream(config)

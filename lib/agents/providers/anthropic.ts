@@ -45,6 +45,7 @@ export const anthropicProvider: AIProvider = {
     return [
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
       { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
     ]
   },
 
@@ -52,6 +53,7 @@ export const anthropicProvider: AIProvider = {
     const pricing: Record<string, { input: number; output: number }> = {
       'claude-sonnet-4-20250514': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
       'claude-haiku-4-20250414': { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
+      'claude-opus-4-20250514': { input: 15 / 1_000_000, output: 75 / 1_000_000 },
     }
     const p = pricing[model] || pricing['claude-sonnet-4-20250514']
     return inputTokens * p.input + outputTokens * p.output

@@ -258,6 +258,7 @@ export async function POST(request: NextRequest) {
         'X-Agent-Slug': agent.slug,
         'X-Model-Used': model,
         'X-Provider': providerName,
+        'X-Model-Tier': agent.modelTier,
       },
     })
   } catch (error) {

@@ -6,6 +6,7 @@ import {
   ShoppingCart,
   BarChart3,
   Lightbulb,
+  ArrowUpRight,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -66,6 +67,13 @@ export const AGENT_CATEGORIES: AgentCategory[] = [
     icon: Lightbulb,
     color: '#F97316',
     description: 'Planifica tu negocio y prepara lanzamientos',
+  },
+  {
+    id: 'cro',
+    label: 'CRO & Conversión',
+    icon: ArrowUpRight,
+    color: '#14B8A6',
+    description: 'Audita y optimiza tu tienda para convertir más',
   },
 ]
 

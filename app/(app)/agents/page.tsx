@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getAllAgents, type AgentDef } from '@/lib/agents/catalog'
 import { AGENT_CATEGORIES } from '@/lib/utils/constants'
+import { TIER_LABELS } from '@/lib/agents/model-info'
 
 const container = {
   hidden: { opacity: 0 },
@@ -120,12 +121,26 @@ function AgentGridCard({ agent }: { agent: AgentDef }) {
               >
                 <Icon className="h-5 w-5" style={{ color: agent.color }} />
               </div>
-              {agent.isPremium && (
-                <Badge className="bg-elite/20 text-elite border-elite/30 gap-1 text-[10px]">
-                  <Crown className="h-3 w-3" />
-                  Elite
+              <div className="flex items-center gap-1">
+                {agent.isPremium && (
+                  <Badge className="bg-elite/20 text-elite border-elite/30 gap-1 text-[10px]">
+                    <Crown className="h-3 w-3" />
+                    Elite
+                  </Badge>
+                )}
+                <Badge
+                  variant="secondary"
+                  className={
+                    agent.modelTier === 'economy'
+                      ? 'bg-green-500/10 text-green-500 border-green-500/20 text-[10px]'
+                      : agent.modelTier === 'premium'
+                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]'
+                        : 'text-[10px]'
+                  }
+                >
+                  {TIER_LABELS[agent.modelTier].badge}
                 </Badge>
-              )}
+              </div>
             </div>
             <div>
               <h3 className="font-semibold text-sm group-hover:text-brand transition-colors">

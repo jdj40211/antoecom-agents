@@ -1,9 +1,9 @@
 'use client'
 
-import { use, useState, useCallback } from 'react'
+import { use, useState, useCallback, useRef, useEffect } from 'react'
 import { notFound } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Loader2, Copy, Check, ArrowLeft, Crown } from 'lucide-react'
+import { Play, Loader2, Copy, Check, ArrowLeft, Crown, Wand2, Eye, Code2, Smartphone, Monitor } from 'lucide-react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { getAgent, type InputField } from '@/lib/agents/catalog'
+import { getModelInfo, TIER_LABELS } from '@/lib/agents/model-info'
+import { useAgentRunStore } from '@/lib/store/agent-runs'
 
 export default function AgentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
@@ -34,9 +36,14 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
     })
     return initial
   })
-  const [output, setOutput] = useState('')
-  const [running, setRunning] = useState(false)
+  const [selectedModel, setSelectedModel] = useState(agent.defaultModel)
   const [copied, setCopied] = useState(false)
+
+  const { runs, startRun } = useAgentRunStore()
+  const run = runs[agent.slug]
+  const output = run?.output ?? ''
+  const error = run?.error ?? ''
+  const running = run?.running ?? false
 
   const Icon = agent.icon
 
@@ -44,75 +51,12 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
     setFormData((prev) => ({ ...prev, [key]: value }))
   }
 
-  const [error, setError] = useState('')
-
-  async function handleRun() {
-    setRunning(true)
-    setOutput('')
-    setError('')
-
-    try {
-      const response = await fetch('/api/agents/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentSlug: agent.slug,
-          input: formData,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        const errorMessage = errorData?.error ?? `Error ${response.status}: Algo salio mal`
-
-        // Add helpful context for specific error types
-        if (response.status === 429) {
-          setError(`${errorMessage}`)
-        } else if (response.status === 400 && errorData?.provider) {
-          setError(`${errorMessage}`)
-        } else {
-          setError(errorMessage)
-        }
-        setRunning(false)
-        return
-      }
-
-      const body = response.body
-      if (!body) {
-        setError('No se recibio respuesta del servidor')
-        setRunning(false)
-        return
-      }
-
-      const reader = body.getReader()
-      const decoder = new TextDecoder()
-      let accumulated = ''
-
-      let done = false
-      while (!done) {
-        const result = await reader.read()
-        done = result.done
-        if (result.value) {
-          const chunk = decoder.decode(result.value, { stream: true })
-          accumulated += chunk
-          setOutput(accumulated)
-        }
-      }
-
-      // Flush remaining bytes
-      const remaining = decoder.decode()
-      if (remaining) {
-        accumulated += remaining
-        setOutput(accumulated)
-      }
-    } catch (fetchError) {
-      const message = fetchError instanceof Error
-        ? fetchError.message
-        : 'Error de conexion'
-      setError(`No se pudo conectar con el servidor: ${message}`)
-    } finally {
-      setRunning(false)
-    }
+  function handleRun() {
+    startRun(agent.slug, {
+      agentSlug: agent.slug,
+      input: formData,
+      modelOverride: selectedModel !== agent.defaultModel ? selectedModel : undefined,
+    })
   }
 
   const handleCopy = useCallback(async () => {
@@ -169,10 +113,47 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
                   field={field}
                   value={formData[key] || ''}
                   onChange={(v) => updateField(key, v)}
+                  agentSlug={agent.slug}
+                  formData={formData}
                 />
               ))}
 
               <Separator />
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Modelo</Label>
+                <Select value={selectedModel} onValueChange={(v) => v && setSelectedModel(v)}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <span className="truncate">{getModelInfo(selectedModel)?.name ?? selectedModel}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agent.allowedModels.map((modelId) => {
+                      const info = getModelInfo(modelId)
+                      return (
+                        <SelectItem key={modelId} value={modelId}>
+                          {info ? `${info.name}  ${info.costLabel}` : modelId}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+                {(() => {
+                  const info = getModelInfo(selectedModel)
+                  const tierInfo = info ? TIER_LABELS[info.tier] : null
+                  return tierInfo ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      Costo estimado: <span className="font-medium text-foreground">{info?.costLabel}</span>
+                      {' '}&middot;{' '}
+                      <span className={
+                        info?.tier === 'economy' ? 'text-green-500' :
+                        info?.tier === 'premium' ? 'text-purple-400' : 'text-blue-400'
+                      }>
+                        {tierInfo.label}
+                      </span>
+                    </p>
+                  ) : null
+                })()}
+              </div>
 
               <Button
                 onClick={handleRun}
@@ -198,55 +179,337 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
         <motion.div
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
+          className="space-y-3"
         >
-          <Card className="min-h-[400px] flex flex-col">
-            <CardHeader className="pb-3 flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">Output</CardTitle>
-              {output && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopy}
-                  className="h-7 px-2 text-xs"
-                >
-                  {copied ? (
-                    <Check className="h-3 w-3 mr-1 text-active" />
-                  ) : (
-                    <Copy className="h-3 w-3 mr-1" />
-                  )}
-                  {copied ? 'Copiado' : 'Copiar'}
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="flex-1">
-              {error ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive max-w-sm text-center space-y-2">
-                    <p className="font-medium">Error</p>
-                    <p className="text-destructive/80">{error}</p>
-                  </div>
-                </div>
-              ) : output ? (
-                <div className="prose prose-sm prose-invert max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                  {running ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-6 w-6 animate-spin text-brand" />
-                      <p>Generando...</p>
-                    </div>
-                  ) : (
-                    <p>El resultado aparecerá aquí</p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <OutputPanel
+            output={output}
+            error={error}
+            running={running}
+            copied={copied}
+            onCopy={handleCopy}
+            agentSlug={agent.slug}
+          />
+          {agent.slug === 'shopify-section-builder' && output && !error && (
+            <InstallInstructions />
+          )}
         </motion.div>
       </div>
     </div>
+  )
+}
+
+const PREVIEWABLE_AGENTS = new Set(['shopify-section-builder', 'landing-page-builder'])
+
+function extractLiquidCode(markdown: string): string | null {
+  const taggedMatch = markdown.match(/```(?:liquid|html)\n([\s\S]*?)```/)
+  if (taggedMatch) return taggedMatch[1].trim()
+
+  const untaggedMatch = markdown.match(/```\n([\s\S]*?)```/)
+  if (untaggedMatch) return untaggedMatch[1].trim()
+
+  const allBlocks = [...markdown.matchAll(/```(?:\w*)\n([\s\S]*?)```/g)]
+  if (allBlocks.length > 1) {
+    return allBlocks.map((m) => m[1].trim()).join('\n\n')
+  }
+
+  if (markdown.includes('{% schema %}') || markdown.includes('<style>') || markdown.includes('<section')) {
+    return markdown.trim()
+  }
+
+  return null
+}
+
+function extractSchemaDefaults(liquidCode: string): Record<string, string> {
+  const defaults: Record<string, string> = {}
+  const schemaMatch = liquidCode.match(/\{%-?\s*schema\s*-?%\}([\s\S]*?)\{%-?\s*endschema\s*-?%\}/)
+  if (!schemaMatch) return defaults
+
+  try {
+    const schema: {
+      settings?: Array<{ id?: string; default?: string | number | boolean }>
+      presets?: Array<{ settings?: Record<string, string | number | boolean> }>
+    } = JSON.parse(schemaMatch[1])
+
+    if (Array.isArray(schema.settings)) {
+      for (const setting of schema.settings) {
+        if (setting.id && setting.default !== undefined) {
+          defaults[setting.id] = String(setting.default)
+        }
+      }
+    }
+    if (Array.isArray(schema.presets) && schema.presets[0]?.settings) {
+      const presetSettings = schema.presets[0].settings
+      for (const [key, value] of Object.entries(presetSettings)) {
+        defaults[key] = String(value)
+      }
+    }
+  } catch {
+    // Schema JSON parse failed
+  }
+
+  return defaults
+}
+
+function resolveExpression(expr: string, defaults: Record<string, string>): string {
+  const parts = expr.split('|')
+  const cleanExpr = parts[0].trim()
+  const hasImageTag = parts.some((f) => f.trim().startsWith('image_tag'))
+
+  let resolved = ''
+
+  if (cleanExpr === 'section.id') {
+    resolved = 'preview-section'
+  } else {
+    const stringLiteral = cleanExpr.match(/^['"](.*)['"]$/)
+    if (stringLiteral) {
+      resolved = stringLiteral[1]
+    } else {
+      const sectionMatch = cleanExpr.match(/^section\.settings\.(\w+)$/)
+      if (sectionMatch) {
+        const key = sectionMatch[1]
+        if (defaults[key] !== undefined) resolved = defaults[key]
+        else if (/title|heading/i.test(key)) resolved = 'Título de ejemplo'
+        else if (/description|text|subtitle|content/i.test(key)) resolved = 'Descripción de ejemplo para esta sección'
+        else if (/button|cta/i.test(key)) resolved = 'Comprar ahora'
+        else if (/image/i.test(key)) resolved = 'https://placehold.co/800x600/e2e8f0/64748b?text=Imagen'
+        else if (/color/i.test(key)) resolved = '#1a1a2e'
+        else if (/url|link/i.test(key)) resolved = '#'
+        else if (/spacing|padding/i.test(key)) resolved = '50'
+      } else {
+        const blockMatch = cleanExpr.match(/^block\.settings\.(\w+)$/)
+        if (blockMatch) {
+          const key = blockMatch[1]
+          if (/title|heading/i.test(key)) resolved = 'Elemento'
+          else if (/text|description|content/i.test(key)) resolved = 'Texto de ejemplo'
+          else if (/image/i.test(key)) resolved = 'https://placehold.co/400x400/e2e8f0/64748b?text=Imagen'
+          else if (/icon/i.test(key)) resolved = ''
+          else if (/url|link/i.test(key)) resolved = '#'
+        }
+      }
+    }
+  }
+
+  if (hasImageTag && resolved) {
+    return `<img src="${resolved}" alt="" style="max-width:100%;height:auto;" loading="lazy">`
+  }
+
+  return resolved
+}
+
+function buildPreviewHtml(liquidCode: string): string {
+  const defaults = extractSchemaDefaults(liquidCode)
+  let html = liquidCode
+
+  html = html.replace(/\{%-?\s*schema\s*-?%\}[\s\S]*?\{%-?\s*endschema\s*-?%\}/g, '')
+  html = html.replace(/\{%-?\s*comment\s*-?%\}[\s\S]*?\{%-?\s*endcomment\s*-?%\}/g, '')
+  html = html.replace(/\{%-?\s*style\s*-?%\}/g, '<style>')
+  html = html.replace(/\{%-?\s*endstyle\s*-?%\}/g, '</style>')
+
+  html = html.replace(/\{\{-?\s*([\s\S]*?)\s*-?\}\}/g, (_, expr: string) => {
+    return resolveExpression(expr.trim(), defaults)
+  })
+
+  html = html.replace(/\{%-?[\s\S]*?-?%\}/g, '')
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #fff; color: #1a1a1a; }
+  img { max-width: 100%; height: auto; }
+  a { color: inherit; text-decoration: none; }
+  :root { --rpn: 0px; --rpp: 0px; }
+</style>
+</head>
+<body>
+<div id="shopify-section-preview-section">
+${html}
+</div>
+</body>
+</html>`
+}
+
+function OutputPanel({
+  output,
+  error,
+  running,
+  copied,
+  onCopy,
+  agentSlug,
+}: {
+  output: string
+  error: string
+  running: boolean
+  copied: boolean
+  onCopy: () => void
+  agentSlug: string
+}) {
+  const canPreview = PREVIEWABLE_AGENTS.has(agentSlug)
+  const [activeTab, setActiveTab] = useState<'code' | 'preview'>('code')
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop')
+  const previewRef = useRef<HTMLDivElement>(null)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    const update = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [activeTab])
+
+  const iframeBaseWidth = viewport === 'desktop' ? 1280 : 375
+  const previewScale = containerSize.width > 0 ? containerSize.width / iframeBaseWidth : (viewport === 'desktop' ? 0.35 : 1)
+  const iframeHeight = containerSize.height > 0 ? Math.round(containerSize.height / previewScale) : 900
+
+  const liquidCode = canPreview && output ? extractLiquidCode(output) : null
+  const showPreviewTab = canPreview && !!liquidCode
+
+  return (
+    <Card className="h-[500px] flex flex-col">
+      <CardHeader className="pb-3 flex-row items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium">Output</CardTitle>
+          {showPreviewTab && (
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-md p-0.5">
+              <button
+                onClick={() => setActiveTab('code')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  activeTab === 'code'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Code2 className="h-3 w-3" />
+                Código
+              </button>
+              <button
+                onClick={() => setActiveTab('preview')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  activeTab === 'preview'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Eye className="h-3 w-3" />
+                Preview
+              </button>
+            </div>
+          )}
+          {activeTab === 'preview' && showPreviewTab && (
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-md p-0.5">
+              <button
+                onClick={() => setViewport('desktop')}
+                className={`p-1 rounded transition-colors ${
+                  viewport === 'desktop'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Monitor className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => setViewport('mobile')}
+                className={`p-1 rounded transition-colors ${
+                  viewport === 'mobile'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Smartphone className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
+        {output && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCopy}
+            className="h-7 px-2 text-xs"
+          >
+            {copied ? (
+              <Check className="h-3 w-3 mr-1 text-active" />
+            ) : (
+              <Copy className="h-3 w-3 mr-1" />
+            )}
+            {copied ? 'Copiado' : 'Copiar'}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="flex-1 overflow-hidden">
+        {error ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive max-w-sm text-center space-y-2">
+              <p className="font-medium">Error</p>
+              <p className="text-destructive/80">{error}</p>
+            </div>
+          </div>
+        ) : output ? (
+          activeTab === 'preview' && liquidCode ? (
+            <div ref={previewRef} className="w-full h-full overflow-hidden">
+              <iframe
+                ref={iframeRef}
+                srcDoc={buildPreviewHtml(liquidCode)}
+                className="border-0 bg-white origin-top-left"
+                style={{
+                  width: `${iframeBaseWidth}px`,
+                  height: `${iframeHeight}px`,
+                  transform: `scale(${previewScale})`,
+                }}
+                sandbox="allow-scripts"
+                title="Preview de sección"
+              />
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto pr-2 scrollbar-thin">
+              <div className="prose prose-sm prose-invert max-w-none text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            {running ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                <p>Generando...</p>
+              </div>
+            ) : (
+              <p>El resultado aparecerá aquí</p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function InstallInstructions() {
+  return (
+    <Card className="p-4">
+      <details>
+        <summary className="cursor-pointer text-sm font-medium hover:text-brand transition-colors select-none">
+          Cómo instalar en Shopify
+        </summary>
+        <ol className="mt-3 space-y-2 pl-5 list-decimal text-sm text-muted-foreground">
+          <li>Copia el código completo usando el botón <strong className="text-foreground">&quot;Copiar&quot;</strong> de arriba</li>
+          <li>En tu tienda Shopify, ve a <strong className="text-foreground">Tienda online → Temas → Personalizar</strong></li>
+          <li>Clic en <strong className="text-foreground">&quot;Agregar sección&quot;</strong></li>
+          <li>Busca <strong className="text-foreground">&quot;Custom Liquid&quot;</strong> (o &quot;Liquid personalizado&quot;)</li>
+          <li>Pega el código en el campo de texto y guarda los cambios</li>
+        </ol>
+        <p className="mt-3 text-xs text-muted-foreground/70 border-t border-border/50 pt-2">
+          Alternativa: sube el archivo .liquid directamente en <strong>Editar código → sections/</strong> para tener una sección nativa con schema editable.
+        </p>
+      </details>
+    </Card>
   )
 }
 
@@ -255,11 +518,15 @@ function DynamicField({
   field,
   value,
   onChange,
+  agentSlug,
+  formData,
 }: {
   fieldKey: string
   field: InputField
   value: string
   onChange: (v: string) => void
+  agentSlug: string
+  formData: Record<string, string>
 }) {
   const isRequired = field.required
 
@@ -283,7 +550,14 @@ function DynamicField({
     )
   }
 
-  const isLongText = field.description?.includes('Pega') || fieldKey.includes('Data') || fieldKey.includes('data') || fieldKey === 'context' || fieldKey === 'benefits' || fieldKey === 'question'
+  const isLongText = field.description?.includes('Pega') || field.description?.includes('Describe') || fieldKey.includes('Data') || fieldKey.includes('data') || fieldKey === 'context' || fieldKey === 'benefits' || fieldKey === 'question' || fieldKey === 'description' || fieldKey === 'currentStructure' || fieldKey === 'issues'
+
+  const nonEnhanceableFields = new Set([
+    'colorScheme', 'brandColors', 'url', 'storeUrl', 'price', 'cost',
+    'shipping', 'adSpend', 'other', 'budget', 'aov', 'currentCR', 'date',
+    'keywords', 'paymentMethods', 'ready', 'references',
+  ])
+  const showEnhance = !field.enum && !nonEnhanceableFields.has(fieldKey)
 
   return (
     <div className="space-y-1.5">
@@ -306,6 +580,99 @@ function DynamicField({
           className="h-9 text-sm"
         />
       )}
+      {showEnhance && (
+        <EnhanceButton
+          agentSlug={agentSlug}
+          fieldKey={fieldKey}
+          fieldTitle={field.title}
+          currentValue={value}
+          context={formData}
+          onEnhanced={onChange}
+        />
+      )}
     </div>
+  )
+}
+
+function EnhanceButton({
+  agentSlug,
+  fieldKey,
+  fieldTitle,
+  currentValue,
+  context,
+  onEnhanced,
+}: {
+  agentSlug: string
+  fieldKey: string
+  fieldTitle: string
+  currentValue: string
+  context: Record<string, string>
+  onEnhanced: (v: string) => void
+}) {
+  const [enhancing, setEnhancing] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  async function handleEnhance() {
+    setEnhancing(true)
+    abortRef.current = new AbortController()
+
+    try {
+      const response = await fetch('/api/agents/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentSlug, fieldKey, fieldTitle, currentValue, context }),
+        signal: abortRef.current.signal,
+      })
+
+      if (!response.ok) {
+        setEnhancing(false)
+        return
+      }
+
+      const body = response.body
+      if (!body) { setEnhancing(false); return }
+
+      const reader = body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      let done = false
+      while (!done) {
+        const result = await reader.read()
+        done = result.done
+        if (result.value) {
+          accumulated += decoder.decode(result.value, { stream: true })
+          onEnhanced(accumulated)
+        }
+      }
+      const remaining = decoder.decode()
+      if (remaining) {
+        accumulated += remaining
+        onEnhanced(accumulated)
+      }
+    } catch {
+      // aborted or network error
+    } finally {
+      setEnhancing(false)
+      abortRef.current = null
+    }
+  }
+
+  const isEmpty = currentValue.trim().length < 3
+
+  return (
+    <button
+      type="button"
+      onClick={handleEnhance}
+      disabled={enhancing || isEmpty}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all bg-brand/10 text-brand border border-brand/20 hover:bg-brand/20 hover:border-brand/30 disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      {enhancing ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Wand2 className="h-3 w-3" />
+      )}
+      {enhancing ? 'Mejorando...' : 'Mejorar con IA'}
+    </button>
   )
 }
