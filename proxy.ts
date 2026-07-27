@@ -28,6 +28,16 @@ export async function proxy(request: NextRequest) {
   const { response, userId } = await updateSession(request)
 
   if (!userId && !isPublic(pathname)) {
+    // Las rutas de API responden 401 en JSON. Si redirigieran al login, un
+    // fetch() seguiría el redirect y recibiría el HTML del login con status
+    // 200, así que el cliente lo tomaría por una respuesta válida.
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Tu sesión expiró. Volvé a iniciar sesión.' },
+        { status: 401 }
+      )
+    }
+
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('next', pathname)
