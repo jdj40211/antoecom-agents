@@ -2,64 +2,36 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { encryptApiKey, getKeyHint } from '@/lib/crypto/key-manager'
 import { setDevKey } from '@/lib/store/dev-keys'
+import { anthropicProvider } from '@/lib/agents/providers/anthropic'
+import { openaiProvider } from '@/lib/agents/providers/openai'
+import { googleProvider } from '@/lib/agents/providers/google'
+import { openrouterProvider } from '@/lib/agents/providers/openrouter'
+import type { AIProvider } from '@/lib/agents/providers/base'
 
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
+
+// La verificación vive en cada provider. Antes estaba duplicada acá, y esa
+// copia se quedó con un modelo retirado que marcaba como inválidas keys buenas.
+const PROVIDERS: Record<string, AIProvider> = {
+  anthropic: anthropicProvider,
+  openai: openaiProvider,
+  google: googleProvider,
+  openrouter: openrouterProvider,
+}
 
 async function verifyProviderKey(
   provider: string,
   apiKey: string
 ): Promise<{ valid: boolean; error: string }> {
-  let valid = false
-  let error = ''
+  const instance = PROVIDERS[provider]
 
-  switch (provider) {
-    case 'anthropic': {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'hi' }],
-        }),
-      })
-      valid = res.ok
-      if (!valid) error = `Anthropic: ${res.status} ${res.statusText}`
-      break
-    }
-    case 'openai': {
-      const res = await fetch('https://api.openai.com/v1/models', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-      valid = res.ok
-      if (!valid) error = `OpenAI: ${res.status} ${res.statusText}`
-      break
-    }
-    case 'google': {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      )
-      valid = res.ok
-      if (!valid) error = `Google: ${res.status} ${res.statusText}`
-      break
-    }
-    case 'openrouter': {
-      const res = await fetch('https://openrouter.ai/api/v1/models', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-      valid = res.ok
-      if (!valid) error = `OpenRouter: ${res.status} ${res.statusText}`
-      break
-    }
-    default:
-      valid = apiKey.length > 5
+  // shopify y dropi todavía no tienen verificación remota
+  if (!instance) {
+    return { valid: apiKey.length > 5, error: '' }
   }
 
-  return { valid, error }
+  const result = await instance.verifyKey(apiKey)
+  return { valid: result.valid, error: result.error ?? '' }
 }
 
 export async function POST(request: NextRequest) {

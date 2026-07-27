@@ -13,12 +13,12 @@ export interface ModelInfo {
 
 export const MODEL_CATALOG: ModelInfo[] = [
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', tier: 'economy', estimatedCostPerRequest: 0.003, costLabel: '~$0.003', inputPricePer1M: 0.15, outputPricePer1M: 0.6 },
-  { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', provider: 'anthropic', tier: 'economy', estimatedCostPerRequest: 0.005, costLabel: '~$0.005', inputPricePer1M: 0.8, outputPricePer1M: 4 },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'anthropic', tier: 'economy', estimatedCostPerRequest: 0.02, costLabel: '~$0.02', inputPricePer1M: 1, outputPricePer1M: 5 },
   { id: 'gemini-2.5-flash', name: 'Gemini Flash', provider: 'google', tier: 'economy', estimatedCostPerRequest: 0.003, costLabel: '~$0.003', inputPricePer1M: 0.15, outputPricePer1M: 0.6 },
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', tier: 'standard', estimatedCostPerRequest: 0.04, costLabel: '~$0.04', inputPricePer1M: 2.5, outputPricePer1M: 10 },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', tier: 'standard', estimatedCostPerRequest: 0.06, costLabel: '~$0.06', inputPricePer1M: 3, outputPricePer1M: 15 },
+  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'anthropic', tier: 'standard', estimatedCostPerRequest: 0.06, costLabel: '~$0.06', inputPricePer1M: 3, outputPricePer1M: 15 },
   { id: 'gemini-2.5-pro', name: 'Gemini Pro', provider: 'google', tier: 'standard', estimatedCostPerRequest: 0.04, costLabel: '~$0.04', inputPricePer1M: 1.25, outputPricePer1M: 10 },
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', tier: 'premium', estimatedCostPerRequest: 0.30, costLabel: '~$0.30', inputPricePer1M: 15, outputPricePer1M: 75 },
+  { id: 'claude-opus-5', name: 'Claude Opus 5', provider: 'anthropic', tier: 'premium', estimatedCostPerRequest: 0.10, costLabel: '~$0.10', inputPricePer1M: 5, outputPricePer1M: 25 },
 ]
 
 export function getModelInfo(modelId: string): ModelInfo | undefined {

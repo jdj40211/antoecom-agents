@@ -1,6 +1,9 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
-import type { AIProvider, ProviderConfig } from './base'
+import { toByteStream, type AIProvider, type ProviderConfig } from './base'
+
+/** Modelo barato usado solo para validar que la key funciona. */
+const VERIFY_MODEL = 'claude-haiku-4-5'
 
 export const anthropicProvider: AIProvider = {
   id: 'anthropic',
@@ -16,13 +19,22 @@ export const anthropicProvider: AIProvider = {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: VERIFY_MODEL,
           max_tokens: 1,
           messages: [{ role: 'user', content: 'hi' }],
         }),
       })
-      return { valid: res.ok, error: res.ok ? undefined : `${res.status} ${res.statusText}` }
-    } catch (err) {
+
+      if (res.ok) return { valid: true }
+
+      // 401/403 = key mala. Cualquier otro código (404 por modelo retirado,
+      // 429, 5xx) no dice nada sobre la validez de la key: no la marcamos mal.
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, error: `Anthropic: ${res.status} ${res.statusText}` }
+      }
+
+      return { valid: true, error: `Anthropic respondió ${res.status}, la key parece válida` }
+    } catch {
       return { valid: false, error: 'Connection failed' }
     }
   },
@@ -38,24 +50,24 @@ export const anthropicProvider: AIProvider = {
       temperature: config.temperature,
     })
 
-    return result.textStream as unknown as ReadableStream<Uint8Array>
+    return toByteStream(result.textStream)
   },
 
   listModels() {
     return [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4' },
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+      { id: 'claude-opus-5', name: 'Claude Opus 5' },
     ]
   },
 
   estimateCost(inputTokens: number, outputTokens: number, model: string) {
     const pricing: Record<string, { input: number; output: number }> = {
-      'claude-sonnet-4-20250514': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
-      'claude-haiku-4-20250414': { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
-      'claude-opus-4-20250514': { input: 15 / 1_000_000, output: 75 / 1_000_000 },
+      'claude-sonnet-5': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
+      'claude-haiku-4-5': { input: 1 / 1_000_000, output: 5 / 1_000_000 },
+      'claude-opus-5': { input: 5 / 1_000_000, output: 25 / 1_000_000 },
     }
-    const p = pricing[model] || pricing['claude-sonnet-4-20250514']
+    const p = pricing[model] || pricing['claude-sonnet-5']
     return inputTokens * p.input + outputTokens * p.output
   },
 }

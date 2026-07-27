@@ -8,7 +8,7 @@ import { ENHANCE_PROMPT_CRITERIA } from '@/lib/agents/knowledge/ecommerce-ux'
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
 
 const ECONOMY_MODELS: Record<string, string> = {
-  anthropic: 'claude-haiku-4-20250414',
+  anthropic: 'claude-haiku-4-5',
   openai: 'gpt-4o-mini',
   google: 'gemini-2.5-flash',
 }
