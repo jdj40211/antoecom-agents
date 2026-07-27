@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server'
 import { getAgent } from '@/lib/agents/catalog'
-import { resolveProvider } from '@/lib/agents/executor'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { getDevKey } from '@/lib/store/dev-keys'
 import { ENHANCE_PROMPT_CRITERIA } from '@/lib/agents/knowledge/ecommerce-ux'
-
-const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
+import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
 
 const ECONOMY_MODELS: Record<string, string> = {
   anthropic: 'claude-haiku-4-5',
@@ -23,6 +21,9 @@ interface EnhanceRequestBody {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     const body = (await request.json()) as EnhanceRequestBody
     const { agentSlug, fieldKey, fieldTitle, currentValue, context } = body
 
@@ -38,8 +39,6 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Agente no encontrado' }, { status: 404 })
     }
 
-    const userId = DEV_USER_ID
-
     let apiKey: string | null = null
     let providerName: string | null = null
 
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
         const { data: keyRow } = await supabase
           .from('user_api_keys')
           .select('encrypted_key, is_valid')
-          .eq('user_id', userId)
+          .eq('user_id', user.id)
           .eq('provider', provider)
           .eq('is_valid', true)
           .maybeSingle()
@@ -106,7 +105,7 @@ Mejora el texto del usuario para que sea más específico, accionable y optimiza
         ? (await import('@/lib/agents/providers/openai')).openaiProvider
         : (await import('@/lib/agents/providers/google')).googleProvider
 
-    const stream = providerInstance.stream({
+    const { stream } = providerInstance.stream({
       apiKey,
       model,
       systemPrompt: ENHANCE_PROMPT_CRITERIA,

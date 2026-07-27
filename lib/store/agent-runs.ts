@@ -4,6 +4,8 @@ interface AgentRun {
   output: string
   error: string
   running: boolean
+  /** id de la fila en agent_runs, para poder guardar el output. */
+  runId: string | null
 }
 
 const abortControllers = new Map<string, AbortController>()
@@ -25,7 +27,10 @@ export const useAgentRunStore = create<AgentRunStore>((set) => ({
     abortControllers.set(slug, controller)
 
     set((state) => ({
-      runs: { ...state.runs, [slug]: { output: '', error: '', running: true } },
+      runs: {
+        ...state.runs,
+        [slug]: { output: '', error: '', running: true, runId: null },
+      },
     }))
 
     void (async () => {
@@ -45,11 +50,13 @@ export const useAgentRunStore = create<AgentRunStore>((set) => ({
           set((state) => ({
             runs: {
               ...state.runs,
-              [slug]: { output: '', error: errorMessage, running: false },
+              [slug]: { output: '', error: errorMessage, running: false, runId: null },
             },
           }))
           return
         }
+
+        const runId = response.headers.get('X-Run-Id')
 
         const reader = response.body?.getReader()
         if (!reader) {
@@ -60,6 +67,7 @@ export const useAgentRunStore = create<AgentRunStore>((set) => ({
                 output: '',
                 error: 'No se recibió respuesta del servidor',
                 running: false,
+                runId: null,
               },
             },
           }))
@@ -92,7 +100,7 @@ export const useAgentRunStore = create<AgentRunStore>((set) => ({
         set((state) => ({
           runs: {
             ...state.runs,
-            [slug]: { output: accumulated, error: '', running: false },
+            [slug]: { output: accumulated, error: '', running: false, runId },
           },
         }))
       } catch (err) {
@@ -106,6 +114,7 @@ export const useAgentRunStore = create<AgentRunStore>((set) => ({
               output: '',
               error: `No se pudo conectar: ${message}`,
               running: false,
+              runId: null,
             },
           },
         }))

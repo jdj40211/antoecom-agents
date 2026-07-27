@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { streamText } from 'ai'
-import { toByteStream, type AIProvider, type ProviderConfig } from './base'
+import { toStreamResult, type AIProvider, type ProviderConfig } from './base'
 
 export const googleProvider: AIProvider = {
   id: 'google',
@@ -28,7 +28,7 @@ export const googleProvider: AIProvider = {
       temperature: config.temperature,
     })
 
-    return toByteStream(result.textStream)
+    return toStreamResult(result)
   },
 
   listModels() {

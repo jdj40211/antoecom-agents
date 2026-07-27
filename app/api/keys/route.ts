@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { encryptApiKey, getKeyHint } from '@/lib/crypto/key-manager'
 import { getDevKeys, setDevKey, deleteDevKey } from '@/lib/store/dev-keys'
-
-const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
+import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
 
 interface KeyResponse {
   provider: string
@@ -14,6 +13,9 @@ interface KeyResponse {
 
 export async function GET() {
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     if (isSupabaseConfigured()) {
       const { createClient } = await import('@/lib/supabase/server')
       const supabase = await createClient()
@@ -21,7 +23,7 @@ export async function GET() {
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('provider, key_hint, is_valid, last_verified_at')
-        .eq('user_id', DEV_USER_ID)
+        .eq('user_id', user.id)
 
       if (error) {
         console.error('GET keys error:', error)
@@ -55,6 +57,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     const body: unknown = await request.json()
 
     if (
@@ -84,7 +89,7 @@ export async function PUT(request: NextRequest) {
         .from('user_api_keys')
         .upsert(
           {
-            user_id: DEV_USER_ID,
+            user_id: user.id,
             provider,
             encrypted_key: encrypted,
             key_hint: hint,
@@ -119,6 +124,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     const body: unknown = await request.json()
 
     if (typeof body !== 'object' || body === null || !('provider' in body)) {
@@ -138,7 +146,7 @@ export async function DELETE(request: NextRequest) {
       const { error: dbError } = await supabase
         .from('user_api_keys')
         .delete()
-        .eq('user_id', DEV_USER_ID)
+        .eq('user_id', user.id)
         .eq('provider', provider)
 
       if (dbError) {

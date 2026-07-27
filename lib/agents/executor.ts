@@ -1,5 +1,5 @@
 import type { AgentDef } from './catalog'
-import type { AIProvider, ProviderConfig } from './providers/base'
+import type { AIProvider, ProviderConfig, StreamResult } from './providers/base'
 import { anthropicProvider } from './providers/anthropic'
 import { openaiProvider } from './providers/openai'
 import { googleProvider } from './providers/google'
@@ -33,7 +33,7 @@ export function resolveProvider(model: string): ProviderName {
 /**
  * Get the AIProvider instance for a given provider name.
  */
-function getProviderInstance(provider: ProviderName): AIProvider {
+export function getProviderInstance(provider: ProviderName): AIProvider {
   const providers: Record<ProviderName, AIProvider> = {
     anthropic: anthropicProvider,
     openai: openaiProvider,
@@ -55,7 +55,7 @@ export interface ExecuteAgentParams {
 /**
  * Execute an agent by selecting the correct provider and streaming the response.
  */
-export function executeAgent(params: ExecuteAgentParams): ReadableStream<Uint8Array> {
+export function executeAgent(params: ExecuteAgentParams): StreamResult {
   const model = params.model ?? params.agent.defaultModel
   const providerName = resolveProvider(model)
   const provider = getProviderInstance(providerName)

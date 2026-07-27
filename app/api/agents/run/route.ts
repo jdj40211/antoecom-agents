@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 import { getAgent } from '@/lib/agents/catalog'
-import { executeAgent, resolveProvider } from '@/lib/agents/executor'
+import { executeAgent, resolveProvider, getProviderInstance } from '@/lib/agents/executor'
 import { buildPrompts } from '@/lib/agents/prompt-builder'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { getDevKey } from '@/lib/store/dev-keys'
+import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
+import { checkRateLimit } from '@/lib/agents/rate-limiter'
 
 export const maxDuration = 300
-
-const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
 
 interface RunRequestBody {
   agentSlug: string
@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     const body = (await request.json()) as RunRequestBody
     const { agentSlug, input, modelOverride } = body
 
@@ -34,29 +37,51 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Agente no encontrado' }, { status: 404 })
     }
 
-    const userId = DEV_USER_ID
     const model = modelOverride ?? agent.defaultModel
     const providerName = resolveProvider(model)
 
-    // Fetch API key (Supabase or dev store)
+    const supabase = isSupabaseConfigured()
+      ? await (await import('@/lib/supabase/server')).createClient()
+      : null
+
+    // Rate limit por programa. Falla abierto si las tablas no responden.
+    if (supabase) {
+      const { data: profile } = await supabase
+        .from('community_profiles')
+        .select('program')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const limit = await checkRateLimit(user.id, (profile?.program as string) ?? 'trial')
+
+      if (!limit.allowed) {
+        return Response.json(
+          {
+            error: `Llegaste al límite de ${limit.limit} ejecuciones por día. Se renueva mañana.`,
+            rateLimited: true,
+          },
+          { status: 429 }
+        )
+      }
+    }
+
+    // ---- API key del usuario ----
     let apiKey: string | null = null
 
-    if (isSupabaseConfigured()) {
-      const { createClient } = await import('@/lib/supabase/server')
+    if (supabase) {
       const { decryptApiKey } = await import('@/lib/crypto/key-manager')
-      const supabase = await createClient()
 
       const { data: keyRow, error: keyError } = await supabase
         .from('user_api_keys')
         .select('encrypted_key, is_valid')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('provider', providerName)
         .maybeSingle()
 
       if (keyError) {
         console.error('[run] Error fetching API key:', keyError.message)
         return Response.json(
-          { error: 'Error al buscar tu API key. Intenta de nuevo.' },
+          { error: 'Error al buscar tu API key. Intentá de nuevo.' },
           { status: 500 }
         )
       }
@@ -64,7 +89,7 @@ export async function POST(request: NextRequest) {
       if (!keyRow) {
         return Response.json(
           {
-            error: `No tienes una API key configurada para ${providerName}. Ve a Configuración > API Keys para agregarla.`,
+            error: `No tenés una API key configurada para ${providerName}. Andá a Configuración > API Keys para agregarla.`,
             provider: providerName,
           },
           { status: 400 }
@@ -74,7 +99,7 @@ export async function POST(request: NextRequest) {
       if (!keyRow.is_valid) {
         return Response.json(
           {
-            error: `Tu API key de ${providerName} está marcada como inválida. Verifica que sea correcta en Configuración > API Keys.`,
+            error: `Tu API key de ${providerName} está marcada como inválida. Verificala en Configuración > API Keys.`,
             provider: providerName,
           },
           { status: 400 }
@@ -86,7 +111,7 @@ export async function POST(request: NextRequest) {
       } catch (decryptError) {
         console.error('[run] Decryption error:', decryptError)
         return Response.json(
-          { error: 'Error al descifrar tu API key. Intenta configurarla de nuevo.' },
+          { error: 'Error al descifrar tu API key. Volvé a configurarla.' },
           { status: 500 }
         )
       }
@@ -96,7 +121,7 @@ export async function POST(request: NextRequest) {
       if (!devKey) {
         return Response.json(
           {
-            error: `No tienes una API key configurada para ${providerName}. Ve a Configuración > API Keys para agregarla.`,
+            error: `No tenés una API key configurada para ${providerName}. Andá a Configuración > API Keys para agregarla.`,
             provider: providerName,
           },
           { status: 400 }
@@ -106,7 +131,7 @@ export async function POST(request: NextRequest) {
       if (!devKey.isValid) {
         return Response.json(
           {
-            error: `Tu API key de ${providerName} está marcada como inválida. Verifica en Configuración > API Keys.`,
+            error: `Tu API key de ${providerName} está marcada como inválida. Verificala en Configuración > API Keys.`,
             provider: providerName,
           },
           { status: 400 }
@@ -118,41 +143,35 @@ export async function POST(request: NextRequest) {
 
     const { systemPrompt, userPrompt } = buildPrompts(agent, input)
 
-    // Track run in Supabase if configured
+    // ---- Registrar la ejecución ----
     let runId: string | undefined
-    let supabaseForTracking: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>> | null = null
 
-    if (isSupabaseConfigured()) {
-      try {
-        const { createClient } = await import('@/lib/supabase/server')
-        supabaseForTracking = await createClient()
+    if (supabase) {
+      const { data: runRow, error: runInsertError } = await supabase
+        .from('agent_runs')
+        .insert({
+          user_id: user.id,
+          agent_slug: agent.slug,
+          status: 'running',
+          input,
+          model_used: model,
+          provider_used: providerName,
+        })
+        .select('id')
+        .single()
 
-        const { data: runRow, error: runInsertError } = await supabaseForTracking
-          .from('agent_runs')
-          .insert({
-            user_id: userId,
-            agent_slug: agent.slug,
-            status: 'running',
-            input,
-            model_used: model,
-            provider_used: providerName,
-          })
-          .select('id')
-          .single()
-
-        if (runInsertError) {
-          console.warn('[run] Failed to insert agent_runs:', runInsertError.message)
-        } else {
-          runId = runRow.id as string
-        }
-      } catch {
-        console.warn('[run] agent_runs table not available')
+      if (runInsertError) {
+        console.warn('[run] Failed to insert agent_runs:', runInsertError.message)
+      } else {
+        runId = runRow.id as string
       }
     }
 
     let sourceStream: ReadableStream<Uint8Array>
+    let usagePromise: Promise<import('@/lib/agents/providers/base').TokenUsage | null>
+
     try {
-      sourceStream = executeAgent({
+      const result = executeAgent({
         agent,
         input,
         apiKey,
@@ -160,14 +179,16 @@ export async function POST(request: NextRequest) {
         systemPrompt,
         userPrompt,
       })
+      sourceStream = result.stream
+      usagePromise = result.usage
     } catch (execError) {
       const errorMessage = execError instanceof Error ? execError.message : 'Error desconocido'
       console.error('[run] Execution error:', errorMessage)
 
-      if (runId && supabaseForTracking) {
-        await supabaseForTracking
+      if (runId && supabase) {
+        await supabase
           .from('agent_runs')
-          .update({ status: 'error', error_message: errorMessage })
+          .update({ status: 'error', error_message: errorMessage, completed_at: new Date().toISOString() })
           .eq('id', runId)
       }
 
@@ -177,7 +198,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const encoder = new TextEncoder()
     const decoder = new TextDecoder()
     let fullOutput = ''
 
@@ -190,26 +210,53 @@ export async function POST(request: NextRequest) {
             const result = await reader.read()
             done = result.done
             if (result.value) {
-              const chunk = typeof result.value === 'string'
-                ? encoder.encode(result.value)
-                : result.value
-              fullOutput += decoder.decode(chunk, { stream: true })
-              controller.enqueue(chunk)
+              fullOutput += decoder.decode(result.value, { stream: true })
+              controller.enqueue(result.value)
             }
           }
 
           fullOutput += decoder.decode()
 
           const responseTimeMs = Date.now() - startTime
-          if (runId && supabaseForTracking) {
-            await supabaseForTracking
-              .from('agent_runs')
-              .update({
-                status: 'success',
-                output: fullOutput,
-                response_time_ms: responseTimeMs,
-              })
-              .eq('id', runId)
+          const usage = await usagePromise
+
+          if (supabase) {
+            const cost = usage
+              ? getProviderInstance(providerName).estimateCost(
+                  usage.inputTokens,
+                  usage.outputTokens,
+                  model
+                )
+              : null
+
+            if (runId) {
+              await supabase
+                .from('agent_runs')
+                .update({
+                  status: 'success',
+                  output: fullOutput,
+                  response_time_ms: responseTimeMs,
+                  completed_at: new Date().toISOString(),
+                  tokens_input: usage?.inputTokens ?? null,
+                  tokens_output: usage?.outputTokens ?? null,
+                  tokens_total: usage?.totalTokens ?? null,
+                  cost_estimate_usd: cost,
+                })
+                .eq('id', runId)
+            }
+
+            // Acumula el uso diario. Va por RPC porque usage_daily no tiene
+            // policies de escritura: así el cliente no puede tocar sus contadores.
+            const { error: usageError } = await supabase.rpc('record_agent_usage', {
+              p_provider: providerName,
+              p_tokens_input: usage?.inputTokens ?? 0,
+              p_tokens_output: usage?.outputTokens ?? 0,
+              p_cost: cost ?? 0,
+            })
+
+            if (usageError) {
+              console.warn('[run] record_agent_usage:', usageError.message)
+            }
           }
 
           controller.close()
@@ -220,27 +267,28 @@ export async function POST(request: NextRequest) {
 
           console.error('[run] Stream error:', errorMessage)
 
-          if (supabaseForTracking) {
+          if (supabase) {
             const isAuthError = errorMessage.includes('401') ||
               errorMessage.includes('403') ||
               errorMessage.toLowerCase().includes('unauthorized') ||
               errorMessage.toLowerCase().includes('invalid api key')
 
             if (isAuthError) {
-              await supabaseForTracking
+              await supabase
                 .from('user_api_keys')
-                .update({ is_valid: false })
-                .eq('user_id', userId)
+                .update({ is_valid: false, verification_error: errorMessage })
+                .eq('user_id', user.id)
                 .eq('provider', providerName)
             }
 
             if (runId) {
-              await supabaseForTracking
+              await supabase
                 .from('agent_runs')
                 .update({
                   status: 'error',
                   error_message: errorMessage,
                   response_time_ms: Date.now() - startTime,
+                  completed_at: new Date().toISOString(),
                 })
                 .eq('id', runId)
             }
@@ -259,6 +307,7 @@ export async function POST(request: NextRequest) {
         'X-Model-Used': model,
         'X-Provider': providerName,
         'X-Model-Tier': agent.modelTier,
+        ...(runId ? { 'X-Run-Id': runId } : {}),
       },
     })
   } catch (error) {

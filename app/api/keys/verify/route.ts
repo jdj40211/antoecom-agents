@@ -7,8 +7,7 @@ import { openaiProvider } from '@/lib/agents/providers/openai'
 import { googleProvider } from '@/lib/agents/providers/google'
 import { openrouterProvider } from '@/lib/agents/providers/openrouter'
 import type { AIProvider } from '@/lib/agents/providers/base'
-
-const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
+import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
 
 // La verificación vive en cada provider. Antes estaba duplicada acá, y esa
 // copia se quedó con un modelo retirado que marcaba como inválidas keys buenas.
@@ -36,6 +35,9 @@ async function verifyProviderKey(
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) return unauthorizedResponse()
+
     const body: unknown = await request.json()
 
     if (
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
         .from('user_api_keys')
         .upsert(
           {
-            user_id: DEV_USER_ID,
+            user_id: user.id,
             provider,
             encrypted_key: encrypted,
             key_hint: hint,

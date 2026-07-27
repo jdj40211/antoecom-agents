@@ -1,24 +1,62 @@
-'use client'
+import { getUser } from '@/lib/auth/dal'
+import { createClient } from '@/lib/supabase/server'
+import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
+import { getAgent } from '@/lib/agents/catalog'
+import { SavedList, type SavedItem } from './SavedList'
 
-import { motion } from 'framer-motion'
-import { Star, BookmarkX } from 'lucide-react'
+export const dynamic = 'force-dynamic'
 
-export default function SavedPage() {
+interface SavedRow {
+  id: string
+  title: string | null
+  created_at: string
+  agent_runs: {
+    agent_slug: string
+    output: string | null
+    tokens_total: number | null
+  } | null
+}
+
+async function loadSaved(userId: string): Promise<SavedItem[]> {
+  if (!isSupabaseConfigured()) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('saved_outputs')
+    .select('id, title, created_at, agent_runs(agent_slug, output, tokens_total)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+    .overrideTypes<SavedRow[]>()
+
+  if (error) {
+    console.error('[saved] load:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => {
+    const slug = row.agent_runs?.agent_slug ?? ''
+    const output = row.agent_runs?.output ?? ''
+
+    return {
+      id: row.id,
+      agentSlug: slug,
+      agentName: getAgent(slug)?.name ?? slug,
+      title: row.title ?? getAgent(slug)?.name ?? 'Output guardado',
+      preview: output.slice(0, 200).replace(/\s+/g, ' ').trim(),
+      tokens: row.agent_runs?.tokens_total ?? 0,
+      createdAt: row.created_at,
+    }
+  })
+}
+
+export default async function SavedPage() {
+  const user = await getUser()
+  const saved = user ? await loadSaved(user.id) : []
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center py-16 text-center"
-      >
-        <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
-          <BookmarkX className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h3 className="font-semibold text-lg">Sin outputs guardados</h3>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Cuando ejecutes un agente, puedes guardar el resultado para acceder a él después
-        </p>
-      </motion.div>
+      <SavedList items={saved} />
     </div>
   )
 }

@@ -3,8 +3,9 @@
 import { use, useState, useCallback, useRef, useEffect } from 'react'
 import { notFound } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Loader2, Copy, Check, ArrowLeft, Crown, Wand2, Eye, Code2, Smartphone, Monitor } from 'lucide-react'
+import { Play, Loader2, Copy, Check, ArrowLeft, Crown, Wand2, Eye, Code2, Smartphone, Monitor, Bookmark, BookmarkCheck } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
   const output = run?.output ?? ''
   const error = run?.error ?? ''
   const running = run?.running ?? false
+  const runId = run?.runId ?? null
 
   const Icon = agent.icon
 
@@ -188,6 +190,8 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
             copied={copied}
             onCopy={handleCopy}
             agentSlug={agent.slug}
+            agentName={agent.name}
+            runId={runId}
           />
           {agent.slug === 'shopify-section-builder' && output && !error && (
             <InstallInstructions />
@@ -339,6 +343,8 @@ function OutputPanel({
   copied,
   onCopy,
   agentSlug,
+  agentName,
+  runId,
 }: {
   output: string
   error: string
@@ -346,8 +352,38 @@ function OutputPanel({
   copied: boolean
   onCopy: () => void
   agentSlug: string
+  agentName: string
+  runId: string | null
 }) {
   const canPreview = PREVIEWABLE_AGENTS.has(agentSlug)
+  const [saving, setSaving] = useState(false)
+  const [savedRunId, setSavedRunId] = useState<string | null>(null)
+
+  // Derivado en vez de resetear con un efecto: cada ejecución nueva trae otro
+  // runId, así que el botón vuelve a habilitarse solo.
+  const saved = runId !== null && savedRunId === runId
+
+  async function handleSave() {
+    if (!runId) return
+    setSaving(true)
+
+    const response = await fetch('/api/saved', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, title: agentName }),
+    })
+
+    setSaving(false)
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null
+      toast.error(data?.error ?? 'No pudimos guardarlo. Intentá de nuevo.')
+      return
+    }
+
+    setSavedRunId(runId)
+    toast.success('Guardado. Lo encontrás en Guardados.')
+  }
   const [activeTab, setActiveTab] = useState<'code' | 'preview'>('code')
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop')
@@ -428,19 +464,37 @@ function OutputPanel({
           )}
         </div>
         {output && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCopy}
-            className="h-7 px-2 text-xs"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 mr-1 text-active" />
-            ) : (
-              <Copy className="h-3 w-3 mr-1" />
+          <div className="flex items-center gap-1">
+            {runId && !error && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || saved}
+                className="h-7 px-2 text-xs"
+              >
+                {saved ? (
+                  <BookmarkCheck className="h-3 w-3 mr-1 text-active" />
+                ) : (
+                  <Bookmark className="h-3 w-3 mr-1" />
+                )}
+                {saved ? 'Guardado' : 'Guardar'}
+              </Button>
             )}
-            {copied ? 'Copiado' : 'Copiar'}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCopy}
+              className="h-7 px-2 text-xs"
+            >
+              {copied ? (
+                <Check className="h-3 w-3 mr-1 text-active" />
+              ) : (
+                <Copy className="h-3 w-3 mr-1" />
+              )}
+              {copied ? 'Copiado' : 'Copiar'}
+            </Button>
+          </div>
         )}
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden">

@@ -1,6 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { streamText } from 'ai'
-import { toByteStream, type AIProvider, type ProviderConfig } from './base'
+import { toStreamResult, type AIProvider, type ProviderConfig } from './base'
 
 export const openaiProvider: AIProvider = {
   id: 'openai',
@@ -28,7 +28,7 @@ export const openaiProvider: AIProvider = {
       temperature: config.temperature,
     })
 
-    return toByteStream(result.textStream)
+    return toStreamResult(result)
   },
 
   listModels() {

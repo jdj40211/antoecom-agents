@@ -1,6 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
-import { toByteStream, type AIProvider, type ProviderConfig } from './base'
+import { toStreamResult, type AIProvider, type ProviderConfig } from './base'
 
 /** Modelo barato usado solo para validar que la key funciona. */
 const VERIFY_MODEL = 'claude-haiku-4-5'
@@ -50,7 +50,7 @@ export const anthropicProvider: AIProvider = {
       temperature: config.temperature,
     })
 
-    return toByteStream(result.textStream)
+    return toStreamResult(result)
   },
 
   listModels() {
