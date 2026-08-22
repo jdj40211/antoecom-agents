@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
+import { isSupabaseConfigured, isDevBypassAllowed } from '@/lib/supabase/is-configured'
 
 /**
  * Usuario de desarrollo. Solo se usa cuando Supabase no está configurado, para
@@ -29,7 +29,10 @@ export interface SessionUser {
  */
 export const getUser = cache(async (): Promise<SessionUser | null> => {
   if (!isSupabaseConfigured()) {
-    return { ...DEV_USER }
+    // Sin Supabase no hay forma de autenticar a nadie. En local se devuelve el
+    // usuario de dev; en un deploy no hay sesión y punto, para que un preview
+    // sin env vars no quede abierto.
+    return isDevBypassAllowed() ? { ...DEV_USER } : null
   }
 
   const supabase = await createClient()
