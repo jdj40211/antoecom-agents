@@ -6,6 +6,7 @@ import { ArrowRight, Sparkles, Zap } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AGENT_CATEGORIES } from '@/lib/utils/constants'
+import { KeysBanner } from '@/components/onboarding/KeysBanner'
 
 const FEATURED_AGENTS = [
   { slug: 'content-engine', name: 'Content Engine', category: 'copy', description: 'Genera ideas, hooks y scripts' },
@@ -32,6 +33,8 @@ const item = {
 export default function HubPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
+      <KeysBanner />
+
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
