@@ -12,6 +12,8 @@ import { relativeTime, formatTokens } from '@/lib/utils/format'
 
 export interface SavedItem {
   id: string
+  /** id del agent_run, que es lo que abre la vista del output. */
+  runId: string
   agentSlug: string
   agentName: string
   title: string
@@ -75,7 +77,7 @@ export function SavedList({ items }: { items: SavedItem[] }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/agents/${entry.agentSlug}`}
+                    href={`/history/${entry.runId}`}
                     className="text-sm font-medium hover:text-brand transition-colors"
                   >
                     {entry.title}

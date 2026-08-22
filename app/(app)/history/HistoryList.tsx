@@ -56,7 +56,7 @@ export function HistoryList({ runs }: { runs: HistoryItem[] }) {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-2">
       {runs.map((run) => (
         <motion.div key={run.id} variants={item}>
-          <Link href={`/agents/${run.agentSlug}`}>
+          <Link href={`/history/${run.id}`}>
             <Card className="hover:border-brand/20 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
