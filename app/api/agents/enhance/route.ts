@@ -7,7 +7,7 @@ import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
 
 const ECONOMY_MODELS: Record<string, string> = {
   anthropic: 'claude-haiku-4-5',
-  openai: 'gpt-4o-mini',
+  openai: 'gpt-5.6-luna',
   google: 'gemini-2.5-flash',
 }
 

@@ -36,7 +36,8 @@ Plataforma comunitaria de agentes IA para la comunidad AntoEcom (Club/Elite). Lo
 ## Modelos
 Los IDs de modelo se rompen cuando el proveedor retira una versión. Antes de tocarlos, verificar contra la documentación oficial del proveedor, no de memoria.
 - Anthropic: `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5` (con guiones, no puntos)
-- OpenAI: `gpt-4o`, `gpt-4o-mini` — **se retiran el 2026-10-23**, migrar a la familia `gpt-5.6-*`
+- OpenAI: `gpt-5.6-terra` (estándar), `gpt-5.6-luna` (económico). También existen `gpt-5.6-sol` (frontier) y `gpt-5.6-cyber`
+- `gpt-4o` y `gpt-4o-mini` se retiran el 2026-10-23. Ya migrados: terra y luna se eligieron por equivalencia de costo, no por la recomendación oficial (OpenAI apunta gpt-4o a `gpt-5.6-sol`, que es bastante más caro)
 - El validador del plugin de Vercel marca estos IDs como erróneos porque asume AI Gateway. Es un falso positivo: acá se llama a cada proveedor directo, con la key del usuario.
 
 ## Reglas
