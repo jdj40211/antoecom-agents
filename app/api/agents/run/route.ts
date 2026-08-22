@@ -55,9 +55,17 @@ export async function POST(request: NextRequest) {
       const limit = await checkRateLimit(user.id, (profile?.program as string) ?? 'trial')
 
       if (!limit.allowed) {
+        const messages: Record<string, string> = {
+          'daily-runs': `Llegaste al límite de ${limit.limit} ejecuciones por día. Se renueva mañana.`,
+          'hourly-runs': `Llegaste al límite de ${limit.limit} ejecuciones por hora. Probá de nuevo en un rato.`,
+          'daily-tokens': `Llegaste al límite de tokens por día de tu plan. Se renueva mañana.`,
+        }
+
         return Response.json(
           {
-            error: `Llegaste al límite de ${limit.limit} ejecuciones por día. Se renueva mañana.`,
+            error:
+              messages[limit.reason ?? ''] ??
+              'Llegaste al límite de uso de tu plan. Se renueva mañana.',
             rateLimited: true,
           },
           { status: 429 }
