@@ -1,54 +1,70 @@
-'use client'
+import { getUser } from '@/lib/auth/dal'
+import { createClient } from '@/lib/supabase/server'
+import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
+import { ProfileForm, type ProfileData } from '@/components/settings/ProfileForm'
 
-import { motion } from 'framer-motion'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
+export const dynamic = 'force-dynamic'
 
-export default function ProfilePage() {
+type Program = ProfileData['program']
+
+const PROGRAMS: Program[] = ['club', 'elite', 'trial']
+
+function toProgram(value: unknown): Program {
+  return PROGRAMS.includes(value as Program) ? (value as Program) : 'trial'
+}
+
+export default async function ProfilePage() {
+  const user = await getUser()
+
+  const base: ProfileData = {
+    email: user?.email ?? '',
+    displayName: '',
+    avatarUrl: '',
+    program: 'trial',
+    dailyLimit: 0,
+    editable: false,
+  }
+
+  if (!user || !isSupabaseConfigured()) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+        <ProfileForm profile={base} />
+      </div>
+    )
+  }
+
+  const supabase = await createClient()
+
+  const { data: profile, error } = await supabase
+    .from('community_profiles')
+    .select('display_name, avatar_url, program')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (error) console.error('[profile] load:', error.message)
+
+  const program = toProgram(profile?.program)
+
+  // El límite sale de la misma tabla que usa el rate limiter, así que lo que ve
+  // el usuario y lo que se le aplica no pueden separarse.
+  const { data: limit } = await supabase
+    .from('rate_limit_config')
+    .select('max_runs_per_day')
+    .eq('program', program)
+    .maybeSingle()
+
+  const data: ProfileData = {
+    email: user.email,
+    displayName: (profile?.display_name as string | null) ?? '',
+    avatarUrl: (profile?.avatar_url as string | null) ?? '',
+    program,
+    dailyLimit: (limit?.max_runs_per_day as number | null) ?? 0,
+    editable: true,
+  }
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Tu perfil</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="bg-brand/20 text-brand text-xl font-semibold">
-                  U
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-medium">Usuario</p>
-                <Badge variant="secondary" className="mt-1">Club</Badge>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Nombre</Label>
-                <Input placeholder="Tu nombre" defaultValue="" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input type="email" placeholder="tu@email.com" disabled />
-              </div>
-            </div>
-
-            <Button className="bg-brand hover:bg-brand-dark text-white">
-              Guardar cambios
-            </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
+      <ProfileForm profile={data} />
     </div>
   )
 }
