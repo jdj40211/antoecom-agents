@@ -12,10 +12,10 @@ export interface ModelInfo {
 }
 
 export const MODEL_CATALOG: ModelInfo[] = [
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', tier: 'economy', estimatedCostPerRequest: 0.003, costLabel: '~$0.003', inputPricePer1M: 0.15, outputPricePer1M: 0.6 },
+  { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', provider: 'openai', tier: 'economy', estimatedCostPerRequest: 0.005, costLabel: '~$0.005', inputPricePer1M: 0.2, outputPricePer1M: 1.2 },
   { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'anthropic', tier: 'economy', estimatedCostPerRequest: 0.02, costLabel: '~$0.02', inputPricePer1M: 1, outputPricePer1M: 5 },
   { id: 'gemini-2.5-flash', name: 'Gemini Flash', provider: 'google', tier: 'economy', estimatedCostPerRequest: 0.003, costLabel: '~$0.003', inputPricePer1M: 0.15, outputPricePer1M: 0.6 },
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', tier: 'standard', estimatedCostPerRequest: 0.04, costLabel: '~$0.04', inputPricePer1M: 2.5, outputPricePer1M: 10 },
+  { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', provider: 'openai', tier: 'standard', estimatedCostPerRequest: 0.05, costLabel: '~$0.05', inputPricePer1M: 2, outputPricePer1M: 12 },
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'anthropic', tier: 'standard', estimatedCostPerRequest: 0.06, costLabel: '~$0.06', inputPricePer1M: 3, outputPricePer1M: 15 },
   { id: 'gemini-2.5-pro', name: 'Gemini Pro', provider: 'google', tier: 'standard', estimatedCostPerRequest: 0.04, costLabel: '~$0.04', inputPricePer1M: 1.25, outputPricePer1M: 10 },
   { id: 'claude-opus-5', name: 'Claude Opus 5', provider: 'anthropic', tier: 'premium', estimatedCostPerRequest: 0.10, costLabel: '~$0.10', inputPricePer1M: 5, outputPricePer1M: 25 },

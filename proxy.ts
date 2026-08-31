@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy-session'
-import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
+import { isSupabaseConfigured, isDevBypassAllowed } from '@/lib/supabase/is-configured'
 
 /** Rutas accesibles sin sesión. */
 const PUBLIC_PATHS = ['/login', '/auth/callback', '/auth/signout']
@@ -19,10 +19,25 @@ function isPublic(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Sin Supabase configurado no hay auth posible: se deja pasar todo para no
-  // dejar el entorno de desarrollo inutilizable.
+  // Sin Supabase configurado no hay auth posible. En local se deja pasar todo
+  // para no inutilizar el entorno de desarrollo; en un deploy se cierra, así
+  // un preview al que le falten las env vars no queda abierto al que pase.
   if (!isSupabaseConfigured()) {
-    return NextResponse.next({ request })
+    if (isDevBypassAllowed() || isPublic(pathname)) {
+      return NextResponse.next({ request })
+    }
+
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Esta instancia no está configurada. Avisale al administrador.' },
+        { status: 503 }
+      )
+    }
+
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/login'
+    redirectUrl.search = ''
+    return NextResponse.redirect(redirectUrl)
   }
 
   const { response, userId } = await updateSession(request)

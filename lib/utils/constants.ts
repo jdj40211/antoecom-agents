@@ -110,22 +110,12 @@ export const PROVIDERS = [
     docsUrl: 'https://openrouter.ai/keys',
     color: '#6366F1',
   },
-  {
-    id: 'shopify',
-    name: 'Shopify',
-    description: 'Admin API para tu tienda',
-    placeholder: 'shpat_...',
-    docsUrl: 'https://admin.shopify.com/store/YOUR-STORE/settings/apps/development',
-    color: '#96BF48',
-  },
-  {
-    id: 'dropi',
-    name: 'Dropi',
-    description: 'Proveedor dropshipping LATAM',
-    placeholder: 'Tu API key de Dropi',
-    docsUrl: 'https://dropi.com',
-    color: '#FF6B35',
-  },
 ] as const
+
+// Shopify y Dropi estuvieron acá como providers, pero ninguna ejecución los
+// usaba y su "verificación" solo miraba que la key tuviera más de 5 caracteres.
+// Pedirle al usuario credenciales de su tienda para no hacer nada con ellas es
+// peor que no ofrecerlas. El CHECK de user_api_keys todavía los acepta, así que
+// se pueden reponer cuando exista la integración de verdad.
 
 export type ProviderId = (typeof PROVIDERS)[number]['id']

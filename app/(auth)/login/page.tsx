@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { Mail, ArrowRight, AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/layout/Logo'
 import { createClient } from '@/lib/supabase/client'
+import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 
 function LoginForm() {
   const searchParams = useSearchParams()
@@ -20,6 +21,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState(searchParams.get('error') ?? '')
+
+  // Las vars de Supabase son NEXT_PUBLIC_, así que el cliente también sabe si
+  // la instancia quedó sin configurar. Sin esto el formulario se enviaría
+  // contra una URL undefined y el error sería incomprensible.
+  const configured = isSupabaseConfigured()
 
   function callbackUrl() {
     return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
@@ -108,7 +114,18 @@ function LoginForm() {
         </motion.div>
       )}
 
-      {sent ? (
+      {!configured ? (
+        <div className="text-center py-4">
+          <div className="w-12 h-12 rounded-full bg-danger/15 border border-danger/30 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6 text-danger" />
+          </div>
+          <p className="text-white font-medium">Esta instancia no está configurada</p>
+          <p className="text-white/50 text-sm mt-1">
+            Le faltan las credenciales de Supabase, así que todavía no se puede
+            iniciar sesión. Avisale al administrador.
+          </p>
+        </div>
+      ) : sent ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

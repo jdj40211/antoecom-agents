@@ -24,9 +24,11 @@ async function verifyProviderKey(
 ): Promise<{ valid: boolean; error: string }> {
   const instance = PROVIDERS[provider]
 
-  // shopify y dropi todavía no tienen verificación remota
+  // Antes, un proveedor desconocido se daba por válido si la key tenía más de
+  // 5 caracteres. Eso guardaba credenciales que después ninguna ejecución podía
+  // usar, y las mostraba como conectadas.
   if (!instance) {
-    return { valid: apiKey.length > 5, error: '' }
+    return { valid: false, error: `Todavía no soportamos ${provider}.` }
   }
 
   const result = await instance.verifyKey(apiKey)

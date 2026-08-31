@@ -33,17 +33,19 @@ export const openaiProvider: AIProvider = {
 
   listModels() {
     return [
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
+      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' },
     ]
   },
 
   estimateCost(inputTokens: number, outputTokens: number, model: string) {
+    // Precios por millón de tokens, de la tabla oficial de OpenAI.
     const pricing: Record<string, { input: number; output: number }> = {
-      'gpt-4o': { input: 2.5 / 1_000_000, output: 10 / 1_000_000 },
-      'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
+      'gpt-5.6-sol': { input: 4 / 1_000_000, output: 20 / 1_000_000 },
+      'gpt-5.6-terra': { input: 2 / 1_000_000, output: 12 / 1_000_000 },
+      'gpt-5.6-luna': { input: 0.2 / 1_000_000, output: 1.2 / 1_000_000 },
     }
-    const p = pricing[model] || pricing['gpt-4o']
+    const p = pricing[model] || pricing['gpt-5.6-terra']
     return inputTokens * p.input + outputTokens * p.output
   },
 }

@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 interface SavedRow {
   id: string
+  run_id: string
   title: string | null
   created_at: string
   agent_runs: {
@@ -23,7 +24,7 @@ async function loadSaved(userId: string): Promise<SavedItem[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('saved_outputs')
-    .select('id, title, created_at, agent_runs(agent_slug, output, tokens_total)')
+    .select('id, run_id, title, created_at, agent_runs(agent_slug, output, tokens_total)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(100)
@@ -40,6 +41,7 @@ async function loadSaved(userId: string): Promise<SavedItem[]> {
 
     return {
       id: row.id,
+      runId: row.run_id,
       agentSlug: slug,
       agentName: getAgent(slug)?.name ?? slug,
       title: row.title ?? getAgent(slug)?.name ?? 'Output guardado',

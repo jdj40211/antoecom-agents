@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useUserKeysStore } from '@/lib/store/user-keys'
 import { PROVIDERS } from '@/lib/utils/constants'
 
 type KeyStatus = 'empty' | 'verifying' | 'connected' | 'error'
@@ -134,6 +135,9 @@ export function ApiKeyManager() {
           },
         }))
         setInputValues((prev) => ({ ...prev, [providerId]: '' }))
+        // El resto de la app (hub y página del agente) lee las keys de este
+        // store, así que hay que avisarle del cambio.
+        void useUserKeysStore.getState().refresh()
       } else {
         setKeys((prev) => ({
           ...prev,
@@ -181,6 +185,10 @@ export function ApiKeyManager() {
       // Revert on network failure - reload from server
       await loadKeys()
     }
+
+    // Después del DELETE, no antes: si no, el store se recargaría con la key
+    // todavía presente. El resto de la app lee las keys de acá.
+    void useUserKeysStore.getState().refresh()
   }
 
   const connectedCount = Object.values(keys).filter((k) => k.status === 'connected').length

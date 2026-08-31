@@ -5,7 +5,11 @@ import { openaiProvider } from './providers/openai'
 import { googleProvider } from './providers/google'
 import { openrouterProvider } from './providers/openrouter'
 
-export type ProviderName = 'anthropic' | 'openai' | 'google' | 'openrouter'
+import { resolveProvider, type ProviderName } from './resolve-provider'
+
+// Se re-exportan para no tocar a quien ya los importaba desde acá.
+export { resolveProvider }
+export type { ProviderName }
 
 type ModelTier = 'economy' | 'standard' | 'premium'
 
@@ -18,16 +22,6 @@ const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
   economy: { maxTokens: 2048, temperature: 0.7 },
   standard: { maxTokens: 4096, temperature: 0.6 },
   premium: { maxTokens: 6144, temperature: 0.4 },
-}
-
-/**
- * Determine which provider to use based on the model string prefix.
- */
-export function resolveProvider(model: string): ProviderName {
-  if (model.startsWith('claude')) return 'anthropic'
-  if (model.startsWith('gpt')) return 'openai'
-  if (model.startsWith('gemini')) return 'google'
-  return 'openrouter'
 }
 
 /**

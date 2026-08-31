@@ -3,7 +3,7 @@
 import { use, useState, useCallback, useRef, useEffect } from 'react'
 import { notFound } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Loader2, Copy, Check, ArrowLeft, Crown, Wand2, Eye, Code2, Smartphone, Monitor, Bookmark, BookmarkCheck } from 'lucide-react'
+import { Play, Loader2, Copy, Check, ArrowLeft, Crown, Wand2, Eye, Code2, Smartphone, Monitor, Bookmark, BookmarkCheck, KeyRound } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
@@ -19,6 +19,13 @@ import { Separator } from '@/components/ui/separator'
 import { getAgent, type InputField } from '@/lib/agents/catalog'
 import { getModelInfo, TIER_LABELS } from '@/lib/agents/model-info'
 import { useAgentRunStore } from '@/lib/store/agent-runs'
+import { useUserKeys } from '@/lib/store/user-keys'
+import { resolveProvider } from '@/lib/agents/resolve-provider'
+import { PROVIDERS } from '@/lib/utils/constants'
+
+function providerLabel(provider: string): string {
+  return PROVIDERS.find((p) => p.id === provider)?.name ?? provider
+}
 
 export default function AgentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
@@ -41,6 +48,7 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
   const [copied, setCopied] = useState(false)
 
   const { runs, startRun } = useAgentRunStore()
+  const { ready: keysReady, hasValidKey } = useUserKeys()
   const run = runs[agent.slug]
   const output = run?.output ?? ''
   const error = run?.error ?? ''
@@ -69,6 +77,12 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
 
   const requiredFields = Object.entries(agent.inputSchema).filter(([, f]) => f.required)
   const allRequiredFilled = requiredFields.every(([key]) => formData[key]?.trim())
+
+  // Cada modelo se ejecuta con la key del usuario para ese proveedor. Sin esto
+  // el formulario se llenaba entero y el "no tenés API key" recién aparecía
+  // después de apretar Ejecutar.
+  const neededProvider = resolveProvider(selectedModel)
+  const missingKey = keysReady && !hasValidKey(neededProvider)
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
@@ -131,9 +145,11 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
                   <SelectContent>
                     {agent.allowedModels.map((modelId) => {
                       const info = getModelInfo(modelId)
+                      const noKey = keysReady && !hasValidKey(resolveProvider(modelId))
                       return (
                         <SelectItem key={modelId} value={modelId}>
                           {info ? `${info.name}  ${info.costLabel}` : modelId}
+                          {noKey ? '  (sin key)' : ''}
                         </SelectItem>
                       )
                     })}
@@ -157,9 +173,27 @@ function AgentExecutor({ agent }: { agent: ReturnType<typeof getAgent> & {} }) {
                 })()}
               </div>
 
+              {missingKey && (
+                <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                  <KeyRound className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium">
+                      Te falta la API key de {providerLabel(neededProvider)}
+                    </p>
+                    <p className="text-muted-foreground mt-0.5">
+                      Este modelo corre con tu propia key.{' '}
+                      <Link href="/settings/keys" className="text-brand hover:underline">
+                        Agregala en Configuración
+                      </Link>{' '}
+                      o elegí un modelo de un proveedor que ya tengas.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={handleRun}
-                disabled={running || !allRequiredFilled}
+                disabled={running || !allRequiredFilled || missingKey}
                 className="w-full bg-brand hover:bg-brand-dark text-white h-10"
               >
                 {running ? (
