@@ -9,18 +9,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const dynamic = 'force-dynamic'
 
-type Program = ProfileData['program']
-
-const PROGRAMS: Program[] = ['club', 'elite', 'trial']
-
-function toProgram(value: unknown): Program {
-  return PROGRAMS.includes(value as Program) ? (value as Program) : 'trial'
-}
-
 function SettingsShell({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 md:px-8 md:py-10">
-      <PageHeader title="Perfil" description="Tu información y el programa que te asignó AntoEcom." />
+      <PageHeader title="Perfil" description="Tu información en la comunidad AntoEcom." />
 
       <Tabs value="profile">
         <TabsList>
@@ -45,8 +37,7 @@ export default async function ProfilePage() {
     email: user?.email ?? '',
     displayName: '',
     avatarUrl: '',
-    program: 'trial',
-    dailyLimit: 0,
+    runsToday: 0,
     editable: false,
   }
 
@@ -62,28 +53,40 @@ export default async function ProfilePage() {
 
   const { data: profile, error } = await supabase
     .from('community_profiles')
-    .select('display_name, avatar_url, program')
+    .select('display_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle()
 
   if (error) console.error('[profile] load:', error.message)
 
-  const program = toProgram(profile?.program)
+  // Acá se leía `program` y con eso se buscaba el límite diario en
+  // `rate_limit_config`. Ya no hay programas y el límite es uno solo para todos,
+  // así que mostrarlo era presentar un freno técnico como si fuera un plan. En
+  // su lugar va lo que el usuario sí puede accionar: cuánto lleva usado hoy.
+  //
+  // En UTC, igual que el CURRENT_DATE de `reserve_agent_run`, para que el
+  // contador que se muestra y el que aplica el límite corten el día igual.
+  const today = new Date().toISOString().slice(0, 10)
 
-  // El límite sale de la misma tabla que usa el rate limiter, así que lo que ve
-  // el usuario y lo que se le aplica no pueden separarse.
-  const { data: limit } = await supabase
-    .from('rate_limit_config')
-    .select('max_runs_per_day')
-    .eq('program', program)
-    .maybeSingle()
+  // Una fila por proveedor, así que hay que sumarlas.
+  const { data: usageRows, error: usageError } = await supabase
+    .from('usage_daily')
+    .select('total_runs')
+    .eq('user_id', user.id)
+    .eq('usage_date', today)
+
+  if (usageError) console.error('[profile] uso del día:', usageError.message)
+
+  const runsToday = (usageRows ?? []).reduce(
+    (total, row) => total + ((row.total_runs as number | null) ?? 0),
+    0
+  )
 
   const data: ProfileData = {
     email: user.email,
     displayName: (profile?.display_name as string | null) ?? '',
     avatarUrl: (profile?.avatar_url as string | null) ?? '',
-    program,
-    dailyLimit: (limit?.max_runs_per_day as number | null) ?? 0,
+    runsToday,
     editable: true,
   }
 

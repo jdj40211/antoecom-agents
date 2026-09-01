@@ -3,7 +3,7 @@
 import { use, useCallback, useState } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Crown } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 import { AgentRunForm } from '@/components/agents/AgentRunForm'
 import { OutputPanel } from '@/components/agents/OutputPanel'
@@ -72,17 +72,9 @@ function AgentScreen({ agent }: { agent: AgentDef }) {
           </div>
         }
         actions={
-          <>
-            <Badge variant="outline" className={tierBadgeClass(agent.modelTier)}>
-              {tierLabel(agent.modelTier)}
-            </Badge>
-            {agent.isPremium ? (
-              <Badge variant="elite">
-                <Crown />
-                Elite
-              </Badge>
-            ) : null}
-          </>
+          <Badge variant="outline" className={tierBadgeClass(agent.modelTier)}>
+            {tierLabel(agent.modelTier)}
+          </Badge>
         }
       />
 

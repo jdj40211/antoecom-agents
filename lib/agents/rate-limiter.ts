@@ -26,22 +26,29 @@ export interface ReservationResult extends RateLimitResult {
   reserved: boolean
 }
 
-interface ProgramLimits {
+interface Limits {
   dailyRuns: number
   hourlyRuns: number
   dailyTokens: number
 }
 
 /**
- * Valores por defecto cuando `rate_limit_config` no tiene fila para el programa.
+ * Clave de la única fila de `rate_limit_config`. La tabla estaba indexada por
+ * programa (trial, club, elite); ya no hay programas, así que el límite es uno
+ * solo para todos y la columna quedó como una clave fija.
+ */
+const LIMITS_KEY = 'all'
+
+/**
+ * Valores por defecto cuando `rate_limit_config` no tiene la fila `all`.
  * Tienen que coincidir con los de `reserve_agent_run` en la migración: si los
  * dos lados asumen cosas distintas, el límite que ve la ruta y el que aplica la
  * base dejan de ser el mismo.
  */
-const DEFAULT_LIMITS: ProgramLimits = {
-  dailyRuns: 50,
-  hourlyRuns: 20,
-  dailyTokens: 500_000,
+const DEFAULT_LIMITS: Limits = {
+  dailyRuns: 200,
+  hourlyRuns: 50,
+  dailyTokens: 2_000_000,
 }
 
 /** Todo permitido: se usa cuando una consulta falla y preferimos no bloquear. */
@@ -55,28 +62,28 @@ const ALLOWED: RateLimitResult = {
 /**
  * Texto en español para cada límite. Vive acá para que `/api/agents/run` y
  * `/api/agents/enhance` le digan exactamente lo mismo al usuario.
+ *
+ * El límite no es un plan y no se menciona como tal: es un freno técnico contra
+ * bucles y pestañas colgadas, igual de alto para todos.
  */
 export function rateLimitMessage(reason: RateLimitReason | null, limit: number): string {
   switch (reason) {
     case 'daily-runs':
-      return `Llegaste al límite de ${limit} ejecuciones por día de tu plan. Se renueva mañana.`
+      return `Llegaste al límite de ${limit} ejecuciones por día. Se renueva mañana.`
     case 'hourly-runs':
-      return `Llegaste al límite de ${limit} ejecuciones por hora de tu plan. Probá de nuevo en un rato.`
+      return `Llegaste al límite de ${limit} ejecuciones por hora. Probá de nuevo en un rato.`
     case 'daily-tokens':
-      return 'Llegaste al límite de tokens por día de tu plan. Se renueva mañana.'
+      return 'Llegaste al límite de tokens por día. Se renueva mañana.'
     default:
-      return 'Llegaste al límite de uso de tu plan. Se renueva mañana.'
+      return 'Llegaste al límite de uso. Se renueva mañana.'
   }
 }
 
-async function fetchProgramLimits(
-  supabase: ServerSupabase,
-  program: string
-): Promise<ProgramLimits | null> {
+async function fetchLimits(supabase: ServerSupabase): Promise<Limits | null> {
   const { data, error } = await supabase
     .from('rate_limit_config')
     .select('max_runs_per_day, max_runs_per_hour, max_tokens_per_day')
-    .eq('program', program)
+    .eq('program', LIMITS_KEY)
     .maybeSingle()
 
   if (error) {
@@ -102,13 +109,10 @@ async function fetchProgramLimits(
  * es el que protege la cuota de verdad, se resuelve aparte y de forma atómica en
  * `reserveAgentRun`.
  */
-export async function checkHourlyRateLimit(
-  userId: string,
-  program: string
-): Promise<RateLimitResult> {
+export async function checkHourlyRateLimit(userId: string): Promise<RateLimitResult> {
   const supabase = await createClient()
 
-  const limits = await fetchProgramLimits(supabase, program)
+  const limits = await fetchLimits(supabase)
   if (!limits) return ALLOWED
 
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
@@ -152,10 +156,7 @@ export async function checkHourlyRateLimit(
  * ejecución cancelada nunca llega a contarse. Se prefiere igual a no aplicar
  * ningún límite.
  */
-async function checkDailyRateLimitLegacy(
-  userId: string,
-  program: string
-): Promise<RateLimitResult> {
+async function checkDailyRateLimitLegacy(userId: string): Promise<RateLimitResult> {
   const supabase = await createClient()
 
   // En UTC, igual que el CURRENT_DATE de las funciones SQL. Si acá se usara la
@@ -176,7 +177,7 @@ async function checkDailyRateLimitLegacy(
     return ALLOWED
   }
 
-  const limits = await fetchProgramLimits(supabase, program)
+  const limits = await fetchLimits(supabase)
   if (!limits) return ALLOWED
 
   const rows = usageRows ?? []
@@ -266,7 +267,6 @@ function toReason(raw: string | null): RateLimitReason | null {
  */
 export async function reserveAgentRun(
   userId: string,
-  program: string,
   provider: string
 ): Promise<ReservationResult> {
   const supabase = await createClient()
@@ -300,7 +300,7 @@ export async function reserveAgentRun(
   // La reserva no está disponible. Antes que dejar de aplicar el límite del
   // todo, se cae al chequeo heredado: no es atómico, pero sigue frenando al
   // usuario que ya se pasó de la cuota del día.
-  const legacy = await checkDailyRateLimitLegacy(userId, program)
+  const legacy = await checkDailyRateLimitLegacy(userId)
   return { ...legacy, reserved: false }
 }
 
