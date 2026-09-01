@@ -17,11 +17,13 @@ import {
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { relativeTime, formatTokens, formatCost } from '@/lib/utils/format'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { fadeIn } from '@/lib/motion/variants'
+import { formatTokens, formatCost } from '@/lib/utils/format'
 
 export interface RunInput {
   label: string
@@ -44,6 +46,19 @@ export interface RunDetailData {
   createdAt: string
   /** id en saved_outputs si el usuario ya lo guardó. */
   savedId: string | null
+}
+
+/** Fecha completa en español, sin depender de la hora del navegador. */
+function formatFullDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function RunDetail({ run }: { run: RunDetailData }) {
@@ -107,61 +122,47 @@ export function RunDetail({ run }: { run: RunDetailData }) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-5"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/history"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Historial
-        </Link>
+    <motion.div variants={fadeIn} initial="hidden" animate="visible" className="space-y-8">
+      <div className="space-y-3">
+        <PageHeader
+          leading={
+            <Button variant="ghost" size="icon" render={<Link href="/history" />}>
+              <ArrowLeft />
+              <span className="sr-only">Volver al historial</span>
+            </Button>
+          }
+          title={run.agentName}
+          actions={
+            isError ? (
+              <Badge variant="destructive">Error</Badge>
+            ) : isRunning ? (
+              <Badge variant="secondary">En curso</Badge>
+            ) : null
+          }
+        />
 
-        <Link href={`/agents/${run.agentSlug}`}>
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <RotateCcw className="h-3.5 w-3.5" />
-            Volver a ejecutar
-          </Button>
-        </Link>
-      </div>
-
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight">{run.agentName}</h1>
-          {isError && (
-            <Badge variant="secondary" className="bg-danger/20 text-danger text-[10px]">
-              Error
-            </Badge>
-          )}
-          {isRunning && (
-            <Badge variant="secondary" className="text-[10px]">
-              En curso
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
-          <span>{relativeTime(run.createdAt)}</span>
-          {run.model && <span>{run.model}</span>}
-          {run.tokensTotal > 0 && <span>{formatTokens(run.tokensTotal)} tokens</span>}
-          {run.cost > 0 && <span>{formatCost(run.cost)}</span>}
-          {run.responseTimeMs > 0 && <span>{(run.responseTimeMs / 1000).toFixed(1)}s</span>}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{formatFullDate(run.createdAt)}</span>
+          {run.model ? <span className="font-mono">{run.model}</span> : null}
+          {run.tokensTotal > 0 ? <span>{formatTokens(run.tokensTotal)} tokens</span> : null}
+          {run.cost > 0 ? (
+            <span className="font-mono text-foreground">{formatCost(run.cost)}</span>
+          ) : null}
+          {run.responseTimeMs > 0 ? <span>{(run.responseTimeMs / 1000).toFixed(1)}s</span> : null}
         </div>
       </div>
 
       {run.inputs.length > 0 && (
         <Card>
-          <CardContent className="p-4 space-y-3">
-            <p className="text-xs font-medium text-muted-foreground">Lo que enviaste</p>
+          <CardContent className="space-y-3 p-6">
+            <p className="text-xs font-medium text-muted-foreground">Input</p>
             <div className="space-y-2">
               {run.inputs.map((field) => (
-                <div key={field.label} className="text-sm">
-                  <span className="text-muted-foreground">{field.label}: </span>
-                  <span className="whitespace-pre-wrap break-words">{field.value}</span>
+                <div key={field.label}>
+                  <p className="text-xs text-muted-foreground">{field.label}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words text-foreground">
+                    {field.value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -170,78 +171,59 @@ export function RunDetail({ run }: { run: RunDetailData }) {
       )}
 
       {isError ? (
-        <Card className="border-danger/30">
-          <CardContent className="p-4 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+        <Card className="border-destructive/20">
+          <CardContent className="flex items-start gap-2 p-6">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
             <div>
-              <p className="text-sm font-medium">Esta ejecución falló</p>
-              <p className="text-sm text-muted-foreground mt-1 break-words">
+              <p className="text-sm font-medium text-foreground">Esta ejecución falló</p>
+              <p className="mt-1 text-sm break-words text-muted-foreground">
                 {run.errorMessage || 'No quedó registrado el motivo.'}
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between gap-2 px-4 py-3">
-              <p className="text-xs font-medium text-muted-foreground">Resultado</p>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handleCopy}>
-                  {copied ? (
-                    <>
-                      <Check className="h-3 w-3 mr-1" />
-                      Copiado
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3 mr-1" />
-                      Copiar
-                    </>
-                  )}
-                </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handleDownload}>
-                  <Download className="h-3 w-3 mr-1" />
-                  Descargar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
-                  disabled={savingState}
-                  onClick={handleToggleSave}
-                >
-                  {run.savedId ? (
-                    <>
-                      <BookmarkCheck className="h-3 w-3 mr-1" />
-                      Guardado
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark className="h-3 w-3 mr-1" />
-                      Guardar
-                    </>
-                  )}
-                </Button>
+        <Card className="gap-0 py-0">
+          <div className="flex items-center justify-between gap-2 px-6 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Output</p>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={handleCopy}>
+                {copied ? <Check /> : <Copy />}
+                {copied ? 'Copiado' : 'Copiar'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleDownload}>
+                <Download />
+                Descargar
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={savingState}
+                onClick={handleToggleSave}
+              >
+                {run.savedId ? <BookmarkCheck /> : <Bookmark />}
+                {run.savedId ? 'Guardado' : 'Guardar'}
+              </Button>
+              <Button variant="outline" size="sm" render={<Link href={`/agents/${run.agentSlug}`} />}>
+                <RotateCcw />
+                Volver a ejecutar
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-border p-6">
+            {run.output ? (
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{run.output}</ReactMarkdown>
               </div>
-            </div>
-
-            <Separator />
-
-            <div className="p-4">
-              {run.output ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{run.output}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {isRunning
-                    ? 'La ejecución todavía no terminó. Volvé en un momento.'
-                    : 'Esta ejecución no dejó ningún resultado.'}
-                </p>
-              )}
-            </div>
-          </CardContent>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {isRunning
+                  ? 'La ejecución todavía no terminó. Volvé en un momento.'
+                  : 'Esta ejecución no dejó ningún resultado.'}
+              </p>
+            )}
+          </div>
         </Card>
       )}
     </motion.div>
