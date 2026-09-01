@@ -2,6 +2,7 @@ import { getUser } from '@/lib/auth/dal'
 import { createClient } from '@/lib/supabase/server'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { getAgent } from '@/lib/agents/catalog'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { SavedList, type SavedItem } from './SavedList'
 
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,8 @@ export default async function SavedPage() {
   const saved = user ? await loadSaved(user.id) : []
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+      <PageHeader title="Guardados" description="Outputs que guardaste" />
       <SavedList items={saved} />
     </div>
   )

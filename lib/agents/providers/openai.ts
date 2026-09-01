@@ -11,7 +11,16 @@ export const openaiProvider: AIProvider = {
       const res = await fetch('https://api.openai.com/v1/models', {
         headers: { Authorization: `Bearer ${apiKey}` },
       })
-      return { valid: res.ok, error: res.ok ? undefined : `${res.status} ${res.statusText}` }
+
+      if (res.ok) return { valid: true }
+
+      // 401/403 = key mala. Cualquier otro código (429, 5xx, etc.) no dice
+      // nada sobre la validez de la key: no la marcamos mal.
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, error: `OpenAI: ${res.status} ${res.statusText}` }
+      }
+
+      return { valid: true, error: `OpenAI respondió ${res.status}, la key parece válida` }
     } catch {
       return { valid: false, error: 'Connection failed' }
     }
@@ -19,6 +28,7 @@ export const openaiProvider: AIProvider = {
 
   stream(config: ProviderConfig) {
     const openai = createOpenAI({ apiKey: config.apiKey })
+    const abortController = new AbortController()
 
     const result = streamText({
       model: openai(config.model),
@@ -26,9 +36,10 @@ export const openaiProvider: AIProvider = {
       prompt: config.userPrompt,
       maxOutputTokens: config.maxTokens,
       temperature: config.temperature,
+      abortSignal: abortController.signal,
     })
 
-    return toStreamResult(result)
+    return toStreamResult(result, abortController)
   },
 
   listModels() {

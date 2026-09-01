@@ -78,7 +78,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id requerido' }, { status: 400 })
     }
 
-    const { id } = body as { id: string }
+    const { id } = body as { id: unknown }
+
+    if (typeof id !== 'string' || !id.trim()) {
+      return NextResponse.json({ error: 'id inválido' }, { status: 400 })
+    }
 
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()

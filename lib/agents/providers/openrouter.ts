@@ -11,7 +11,16 @@ export const openrouterProvider: AIProvider = {
       const res = await fetch('https://openrouter.ai/api/v1/models', {
         headers: { Authorization: `Bearer ${apiKey}` },
       })
-      return { valid: res.ok, error: res.ok ? undefined : `${res.status} ${res.statusText}` }
+
+      if (res.ok) return { valid: true }
+
+      // 401/403 = key mala. Cualquier otro código (429, 5xx, etc.) no dice
+      // nada sobre la validez de la key: no la marcamos mal.
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, error: `OpenRouter: ${res.status} ${res.statusText}` }
+      }
+
+      return { valid: true, error: `OpenRouter respondió ${res.status}, la key parece válida` }
     } catch {
       return { valid: false, error: 'Connection failed' }
     }
@@ -22,6 +31,7 @@ export const openrouterProvider: AIProvider = {
       apiKey: config.apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
     })
+    const abortController = new AbortController()
 
     const result = streamText({
       model: openrouter(config.model),
@@ -29,9 +39,10 @@ export const openrouterProvider: AIProvider = {
       prompt: config.userPrompt,
       maxOutputTokens: config.maxTokens,
       temperature: config.temperature,
+      abortSignal: abortController.signal,
     })
 
-    return toStreamResult(result)
+    return toStreamResult(result, abortController)
   },
 
   listModels() {

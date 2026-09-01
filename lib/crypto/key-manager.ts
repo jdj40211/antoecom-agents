@@ -1,12 +1,20 @@
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
-const IV_LENGTH = 16
+// Estándar para AES-GCM (antes eran 16). decryptApiKey no depende de esta
+// constante: el IV se lee del hex ya guardado en cada ciphertext, con el
+// largo que tenía en el momento de cifrar. Por eso este cambio es compatible
+// hacia atrás: las keys cifradas antes, con IV de 16 bytes, siguen
+// descifrando bien; solo las nuevas usan 12.
+const IV_LENGTH = 12
+const ENCRYPTION_SECRET_PATTERN = /^[0-9a-f]{64}$/i
 
 function getEncryptionKey(): Buffer {
   const secret = process.env.API_KEY_ENCRYPTION_SECRET
-  if (!secret || secret.length < 64) {
-    throw new Error('API_KEY_ENCRYPTION_SECRET must be a 64-char hex string')
+  if (!secret || !ENCRYPTION_SECRET_PATTERN.test(secret)) {
+    throw new Error(
+      'API_KEY_ENCRYPTION_SECRET debe ser una cadena hexadecimal de exactamente 64 caracteres (0-9, a-f).'
+    )
   }
   return Buffer.from(secret, 'hex')
 }

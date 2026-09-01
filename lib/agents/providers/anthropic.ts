@@ -41,6 +41,7 @@ export const anthropicProvider: AIProvider = {
 
   stream(config: ProviderConfig) {
     const anthropic = createAnthropic({ apiKey: config.apiKey })
+    const abortController = new AbortController()
 
     const result = streamText({
       model: anthropic(config.model),
@@ -48,9 +49,10 @@ export const anthropicProvider: AIProvider = {
       prompt: config.userPrompt,
       maxOutputTokens: config.maxTokens,
       temperature: config.temperature,
+      abortSignal: abortController.signal,
     })
 
-    return toStreamResult(result)
+    return toStreamResult(result, abortController)
   },
 
   listModels() {

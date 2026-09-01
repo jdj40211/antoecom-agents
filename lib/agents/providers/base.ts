@@ -48,8 +48,17 @@ interface AiSdkStreamLike {
  * El `textStream` del AI SDK emite strings, pero el body de una Response
  * necesita bytes. Sin esta conversión, devolver el stream directo a
  * `new Response()` falla en runtime.
+ *
+ * `abortController`, si se pasa, se aborta cuando alguien cancela el
+ * `ReadableStream` devuelto (por ejemplo porque el cliente cerró la
+ * conexión). Los providers crean el controller y le pasan `signal` a
+ * `streamText`, así el abort corta la llamada real al proveedor en vez de
+ * dejarla corriendo (y facturando) hasta el final aunque nadie la escuche.
  */
-export function toStreamResult(result: AiSdkStreamLike): StreamResult {
+export function toStreamResult(
+  result: AiSdkStreamLike,
+  abortController?: AbortController
+): StreamResult {
   const encoder = new TextEncoder()
 
   let resolveUsage: (usage: TokenUsage | null) => void = () => {}
@@ -82,6 +91,9 @@ export function toStreamResult(result: AiSdkStreamLike): StreamResult {
           resolveUsage(null)
         }
       }
+    },
+    cancel(reason) {
+      abortController?.abort(reason)
     },
   })
 

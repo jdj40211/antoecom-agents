@@ -1,7 +1,11 @@
+import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { getUser } from '@/lib/auth/dal'
 import { createClient } from '@/lib/supabase/server'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { ProfileForm, type ProfileData } from '@/components/settings/ProfileForm'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +15,27 @@ const PROGRAMS: Program[] = ['club', 'elite', 'trial']
 
 function toProgram(value: unknown): Program {
   return PROGRAMS.includes(value as Program) ? (value as Program) : 'trial'
+}
+
+function SettingsShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+      <PageHeader title="Perfil" description="Tu información y el programa que te asignó AntoEcom." />
+
+      <Tabs value="profile">
+        <TabsList>
+          <TabsTrigger value="keys" render={<Link href="/settings/keys" />}>
+            API Keys
+          </TabsTrigger>
+          <TabsTrigger value="profile" render={<Link href="/settings/profile" />}>
+            Perfil
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {children}
+    </div>
+  )
 }
 
 export default async function ProfilePage() {
@@ -27,9 +52,9 @@ export default async function ProfilePage() {
 
   if (!user || !isSupabaseConfigured()) {
     return (
-      <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+      <SettingsShell>
         <ProfileForm profile={base} />
-      </div>
+      </SettingsShell>
     )
   }
 
@@ -63,8 +88,8 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+    <SettingsShell>
       <ProfileForm profile={data} />
-    </div>
+    </SettingsShell>
   )
 }

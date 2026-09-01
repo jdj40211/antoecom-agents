@@ -1,27 +1,20 @@
 'use client'
 
-import { useState, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useMemo, useState, type ReactNode } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import Link from 'next/link'
-import { Search, Crown } from 'lucide-react'
+import { Search, SearchX } from 'lucide-react'
+
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { EntityCard } from '@/components/shared/EntityCard'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { getAllAgents, type AgentDef } from '@/lib/agents/catalog'
 import { AGENT_CATEGORIES } from '@/lib/utils/constants'
-import { TIER_LABELS } from '@/lib/agents/model-info'
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.04 } },
-}
-
-const item = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0 },
-}
+import { TIER_LABELS, tierBadgeClass } from '@/lib/utils/tier'
+import { listContainer, listItem } from '@/lib/motion/variants'
+import { cn } from '@/lib/utils'
 
 export default function AgentsPage() {
   return (
@@ -32,134 +25,149 @@ export default function AgentsPage() {
 }
 
 function AgentsPageContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const initialCategory = searchParams.get('category') || 'all'
-  const [activeCategory, setActiveCategory] = useState(initialCategory)
+  const activeCategory = searchParams.get('category') || 'all'
   const [search, setSearch] = useState('')
   const agents = getAllAgents()
+
+  function setCategory(id: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (id === 'all') {
+      params.delete('category')
+    } else {
+      params.set('category', id)
+    }
+    const query = params.toString()
+    router.push(query ? `/agents?${query}` : '/agents')
+  }
 
   const filtered = useMemo(() => {
     let result = agents
     if (activeCategory !== 'all') {
-      result = result.filter((a) => a.category === activeCategory)
+      result = result.filter((agent) => agent.category === activeCategory)
     }
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
-        (a) => a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
+        (agent) =>
+          agent.name.toLowerCase().includes(q) || agent.description.toLowerCase().includes(q)
       )
     }
     return result
   }, [agents, activeCategory, search])
 
+  function clearFilters() {
+    setSearch('')
+    setCategory('all')
+  }
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto space-y-5">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+      <PageHeader title="Agentes" description="28 agentes especializados para tu ecommerce" />
+
+      <div className="space-y-4">
+        <div className="relative sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar agente..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="pl-9"
           />
         </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <CategoryPill active={activeCategory === 'all'} onClick={() => setCategory('all')}>
+            Todos
+          </CategoryPill>
+          {AGENT_CATEGORIES.map((category) => (
+            <CategoryPill
+              key={category.id}
+              active={activeCategory === category.id}
+              onClick={() => setCategory(category.id)}
+            >
+              {category.label}
+            </CategoryPill>
+          ))}
+        </div>
       </div>
 
-      <Tabs value={activeCategory} onValueChange={setActiveCategory}>
-        <TabsList className="flex-wrap h-auto gap-1 bg-transparent p-0">
-          <TabsTrigger value="all" className="data-[state=active]:bg-brand/20 data-[state=active]:text-brand">
-            Todos ({agents.length})
-          </TabsTrigger>
-          {AGENT_CATEGORIES.map((cat) => {
-            const count = agents.filter((a) => a.category === cat.id).length
-            return (
-              <TabsTrigger
-                key={cat.id}
-                value={cat.id}
-                className="data-[state=active]:bg-brand/20 data-[state=active]:text-brand"
-              >
-                {cat.label} ({count})
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
-      </Tabs>
-
-      <motion.div
-        key={activeCategory + search}
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-      >
-        {filtered.map((agent) => (
-          <AgentGridCard key={agent.slug} agent={agent} />
-        ))}
-      </motion.div>
-
-      {filtered.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          No se encontraron agentes
-        </div>
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={SearchX}
+          title="Ningún agente coincide"
+          description="Probá con otra categoría o borrá la búsqueda."
+          action={
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          }
+        />
+      ) : (
+        <motion.div
+          key={`${activeCategory}-${search}`}
+          variants={listContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          {filtered.map((agent) => (
+            <motion.div key={agent.slug} variants={listItem}>
+              <AgentCard agent={agent} />
+            </motion.div>
+          ))}
+        </motion.div>
       )}
     </div>
   )
 }
 
-function AgentGridCard({ agent }: { agent: AgentDef }) {
-  const Icon = agent.icon
+function CategoryPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
   return (
-    <motion.div variants={item}>
-      <Link href={`/agents/${agent.slug}`}>
-        <Card className="group hover:border-brand/30 transition-all duration-200 hover:shadow-lg hover:shadow-brand/5 cursor-pointer h-full">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-start justify-between">
-              <div
-                className="h-10 w-10 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: `${agent.color}15` }}
-              >
-                <Icon className="h-5 w-5" style={{ color: agent.color }} />
-              </div>
-              <div className="flex items-center gap-1">
-                {agent.isPremium && (
-                  <Badge className="bg-elite/20 text-elite border-elite/30 gap-1 text-[10px]">
-                    <Crown className="h-3 w-3" />
-                    Elite
-                  </Badge>
-                )}
-                <Badge
-                  variant="secondary"
-                  className={
-                    agent.modelTier === 'economy'
-                      ? 'bg-green-500/10 text-green-500 border-green-500/20 text-[10px]'
-                      : agent.modelTier === 'premium'
-                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]'
-                        : 'text-[10px]'
-                  }
-                >
-                  {TIER_LABELS[agent.modelTier].badge}
-                </Badge>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm group-hover:text-brand transition-colors">
-                {agent.name}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                {agent.description}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {agent.requiredProviders.slice(0, 3).map((p) => (
-                <Badge key={p} variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {p}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
-    </motion.div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'h-8 shrink-0 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active
+          ? 'border-transparent bg-muted text-foreground'
+          : 'border-border text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function AgentCard({ agent }: { agent: AgentDef }) {
+  return (
+    <EntityCard
+      layout="tile"
+      href={`/agents/${agent.slug}`}
+      icon={agent.icon}
+      title={agent.name}
+      description={agent.description}
+      badges={
+        <>
+          {agent.isPremium ? <Badge variant="elite">Elite</Badge> : null}
+          <Badge variant="outline" className={tierBadgeClass(agent.modelTier)}>
+            {TIER_LABELS[agent.modelTier].label}
+          </Badge>
+        </>
+      }
+    />
   )
 }
