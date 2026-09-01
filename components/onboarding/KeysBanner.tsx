@@ -2,10 +2,12 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { KeyRound, ArrowRight } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
+
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useUserKeys } from '@/lib/store/user-keys'
+import { fadeIn } from '@/lib/motion/variants'
 
 /**
  * Aviso para quien todavía no cargó ninguna API key.
@@ -20,25 +22,24 @@ export function KeysBanner() {
   if (!ready || hasAnyValidKey) return null
 
   return (
-    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
-      <Card className="border-brand/30 bg-brand/5">
-        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-brand/15 flex items-center justify-center shrink-0">
-            <KeyRound className="h-4 w-4 text-brand" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">Cargá una API key para empezar</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+    <motion.div initial="hidden" animate="visible" variants={fadeIn}>
+      <Card>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+            <KeyRound className="size-4 text-muted-foreground" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Cargá una API key para empezar
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Los agentes corren con tu propia key, así que pagás solo lo que usás y nadie
               más ve tu consumo. Con una alcanza para arrancar.
             </p>
           </div>
-          <Link href="/settings/keys" className="shrink-0">
-            <Button size="sm" className="bg-brand hover:bg-brand-dark text-white gap-1.5">
-              Configurar
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <Button size="sm" render={<Link href="/settings/keys" />} className="shrink-0">
+            Configurar
+          </Button>
         </CardContent>
       </Card>
     </motion.div>

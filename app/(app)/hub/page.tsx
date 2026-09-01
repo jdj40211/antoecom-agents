@@ -1,136 +1,244 @@
-'use client'
-
-import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { ArrowRight, Sparkles, Zap } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { AGENT_CATEGORIES } from '@/lib/utils/constants'
-import { KeysBanner } from '@/components/onboarding/KeysBanner'
+import type { LucideIcon } from 'lucide-react'
 
-const FEATURED_AGENTS = [
-  { slug: 'content-engine', name: 'Content Engine', category: 'copy', description: 'Genera ideas, hooks y scripts' },
-  { slug: 'product-hunter', name: 'Product Hunter', category: 'research', description: 'Encuentra productos ganadores' },
-  { slug: 'meta-doctor', name: 'Meta Doctor', category: 'ads', description: 'Diagnostica tus campañas' },
-  { slug: 'ugc-scripts', name: 'UGC Scripts', category: 'ugc', description: 'Guiones UGC con tu voz de marca' },
-  { slug: 'image-prompts', name: 'Image Prompts', category: 'ugc', description: 'Prompts para imágenes IA' },
-  { slug: 'shopify-assistant', name: 'Shopify Assistant', category: 'ecommerce', description: 'Ayuda con tu tienda' },
+import { getUser } from '@/lib/auth/dal'
+import { createClient } from '@/lib/supabase/server'
+import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
+import { getAgent } from '@/lib/agents/catalog'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EntityCard } from '@/components/shared/EntityCard'
+import { StatCard } from '@/components/shared/StatCard'
+import { KeysBanner } from '@/components/onboarding/KeysBanner'
+import { relativeTime, formatTokens, formatCost } from '@/lib/utils/format'
+
+export const dynamic = 'force-dynamic'
+
+/** Se usan cuando el usuario todavía no tiene historial propio. */
+const FEATURED_SLUGS = [
+  'content-engine',
+  'product-hunter',
+  'meta-doctor',
+  'ugc-scripts',
+  'image-prompts',
+  'shopify-assistant',
 ]
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
+interface ContinueItem {
+  id: string
+  slug: string
+  name: string
+  icon: LucideIcon
+  preview: string
+  createdAt: string
 }
 
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
+interface UsageSummary {
+  totalRuns: number
+  totalTokens: number
+  totalCost: number
 }
 
-export default function HubPage() {
+/** Últimas ejecuciones, para "Continuar donde quedaste". */
+async function loadContinueItems(userId: string): Promise<ContinueItem[]> {
+  if (!isSupabaseConfigured()) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('agent_runs')
+    .select('id, agent_slug, status, output, error_message, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(3)
+
+  if (error) {
+    console.error('[hub] cargar continuar:', error.message)
+    return []
+  }
+
+  return (data ?? []).flatMap((row) => {
+    const slug = row.agent_slug as string
+    const agent = getAgent(slug)
+    if (!agent) return []
+
+    const status = row.status as string
+    const output = (row.output as string | null) ?? ''
+    const errorMessage = (row.error_message as string | null) ?? ''
+
+    return [
+      {
+        id: row.id as string,
+        slug,
+        name: agent.name,
+        icon: agent.icon,
+        preview:
+          status === 'error'
+            ? `Error: ${errorMessage || 'la ejecución falló'}`
+            : output.slice(0, 140).replace(/\s+/g, ' ').trim() || 'Sin salida',
+        createdAt: row.created_at as string,
+      },
+    ]
+  })
+}
+
+/**
+ * Los agentes que más corrió el usuario, para "Acceso rápido". Se mira una
+ * ventana de las últimas 200 ejecuciones: alcanza para un ranking estable sin
+ * escanear toda la tabla.
+ */
+async function loadTopSlugs(userId: string): Promise<string[]> {
+  if (!isSupabaseConfigured()) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('agent_runs')
+    .select('agent_slug')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) {
+    console.error('[hub] cargar más usados:', error.message)
+    return []
+  }
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const slug = row.agent_slug as string
+    counts.set(slug, (counts.get(slug) ?? 0) + 1)
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([slug]) => slug)
+}
+
+/** Consumo del mes en curso, para el resumen de uso. */
+async function loadUsageSummary(userId: string): Promise<UsageSummary | null> {
+  if (!isSupabaseConfigured()) return null
+
+  const supabase = await createClient()
+  const firstOfMonth = new Date()
+  firstOfMonth.setDate(1)
+  const from = firstOfMonth.toISOString().slice(0, 10)
+
+  const { data, error } = await supabase
+    .from('usage_daily')
+    .select('total_runs, total_tokens_input, total_tokens_output, total_cost_estimate_usd')
+    .eq('user_id', userId)
+    .gte('usage_date', from)
+
+  if (error) {
+    console.error('[hub] cargar resumen de uso:', error.message)
+    return null
+  }
+
+  let totalRuns = 0
+  let totalTokens = 0
+  let totalCost = 0
+
+  for (const row of data ?? []) {
+    totalRuns += (row.total_runs as number | null) ?? 0
+    totalTokens +=
+      ((row.total_tokens_input as number | null) ?? 0) +
+      ((row.total_tokens_output as number | null) ?? 0)
+    totalCost += Number(row.total_cost_estimate_usd ?? 0)
+  }
+
+  return totalRuns > 0 ? { totalRuns, totalTokens, totalCost } : null
+}
+
+/** "juan.perez@x.com" -> "Juan Perez". Sin nombre real guardado, el email alcanza. */
+function firstNameFromEmail(email: string): string {
+  const local = email.split('@')[0] ?? ''
+  const cleaned = local.replace(/[._-]+/g, ' ').trim()
+  if (!cleaned) return 'ahí'
+
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+export default async function HubPage() {
+  const user = await getUser()
+
+  const [continueItems, topSlugs, usage] = user
+    ? await Promise.all([
+        loadContinueItems(user.id),
+        loadTopSlugs(user.id),
+        loadUsageSummary(user.id),
+      ])
+    : [[], [], null]
+
+  const quickAccessSlugs = topSlugs.length > 0 ? topSlugs : FEATURED_SLUGS
+  const quickAccessAgents = quickAccessSlugs.flatMap((slug) => {
+    const agent = getAgent(slug)
+    return agent ? [agent] : []
+  })
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+      <PageHeader
+        title={`Hola, ${user ? firstNameFromEmail(user.email) : 'ahí'}`}
+        description="¿Qué vas a lanzar hoy?"
+      />
+
       <KeysBanner />
 
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="space-y-2"
-      >
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-brand" />
-          <h2 className="text-2xl font-bold tracking-tight">
-            ¿Qué quieres hacer hoy?
+      {continueItems.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Continuar donde quedaste
           </h2>
-        </div>
-        <p className="text-muted-foreground text-sm">
-          Elige una categoría o usa directamente un agente para empezar
-        </p>
-      </motion.div>
+          <div className="space-y-2">
+            {continueItems.map((run) => (
+              <EntityCard
+                key={run.id}
+                href={`/history/${run.id}`}
+                icon={run.icon}
+                title={run.name}
+                description={run.preview}
+                meta={relativeTime(run.createdAt)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-      >
-        {AGENT_CATEGORIES.map((cat) => {
-          const Icon = cat.icon
-          return (
-            <motion.div key={cat.id} variants={item}>
-              <Link href={`/agents?category=${cat.id}`}>
-                <Card className="group hover:border-brand/30 transition-all duration-200 hover:shadow-lg hover:shadow-brand/5 cursor-pointer h-full">
-                  <CardContent className="p-4 space-y-3">
-                    <div
-                      className="h-10 w-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${cat.color}15` }}
-                    >
-                      <Icon className="h-5 w-5" style={{ color: cat.color }} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-sm group-hover:text-brand transition-colors">
-                        {cat.label}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {cat.description}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
-                  </CardContent>
-                </Card>
-              </Link>
-            </motion.div>
-          )
-        })}
-      </motion.div>
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-warning" />
-          <h3 className="text-sm font-semibold">Acceso rápido</h3>
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Acceso rápido
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {quickAccessAgents.map((agent) => (
+            <EntityCard
+              key={agent.slug}
+              href={`/agents/${agent.slug}`}
+              icon={agent.icon}
+              title={agent.name}
+              description={agent.description}
+            />
+          ))}
         </div>
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-        >
-          {FEATURED_AGENTS.map((agent) => {
-            const cat = AGENT_CATEGORIES.find((c) => c.id === agent.category)
-            return (
-              <motion.div key={agent.slug} variants={item}>
-                <Link href={`/agents/${agent.slug}`}>
-                  <Card className="group hover:border-brand/20 transition-all duration-200 cursor-pointer">
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <div
-                        className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${cat?.color || '#9500FF'}15` }}
-                      >
-                        {cat && <cat.icon className="h-4 w-4" style={{ color: cat.color }} />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate group-hover:text-brand transition-colors">
-                            {agent.name}
-                          </span>
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                            {cat?.label}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{agent.description}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </motion.div>
-            )
-          })}
-        </motion.div>
-      </div>
+      </section>
+
+      {usage ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Resumen de uso
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <StatCard label="Ejecuciones" value={String(usage.totalRuns)} />
+            <StatCard label="Tokens" value={formatTokens(usage.totalTokens)} mono />
+            <StatCard label="Costo estimado" value={formatCost(usage.totalCost)} mono />
+          </div>
+          <Link href="/usage" className="inline-block text-sm text-primary hover:underline">
+            Ver uso completo
+          </Link>
+        </section>
+      ) : null}
     </div>
   )
 }
