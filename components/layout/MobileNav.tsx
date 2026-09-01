@@ -2,97 +2,46 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home, Bot, History, Settings } from 'lucide-react'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { Home, Bot, History, TrendingUp, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useUIStore } from '@/lib/store/ui'
-import { AGENT_CATEGORIES } from '@/lib/utils/constants'
-import { Logo } from './Logo'
 
 const MOBILE_TABS = [
   { href: '/hub', label: 'Hub', icon: Home },
   { href: '/agents', label: 'Agentes', icon: Bot },
   { href: '/history', label: 'Historial', icon: History },
+  { href: '/usage', label: 'Uso', icon: TrendingUp },
   { href: '/settings', label: 'Config', icon: Settings },
-]
+] as const
 
+/**
+ * Bottom nav de mobile. Reemplaza al sheet lateral con categorías: con estos
+ * 5 tabs más el catálogo filtrable en /agents no queda contenido que
+ * justifique un drawer aparte.
+ */
 export function MobileBottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-border bg-background/95 backdrop-blur-md">
-      <div className="flex items-center justify-around h-14">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div className="flex h-16 items-center justify-around">
         {MOBILE_TABS.map((tab) => {
-          const active = pathname.startsWith(tab.href)
+          const active =
+            tab.href === '/hub' ? pathname === tab.href : pathname.startsWith(tab.href)
           return (
             <Link
               key={tab.href}
               href={tab.href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors',
-                active ? 'text-brand' : 'text-muted-foreground'
+                'flex min-w-11 flex-col items-center gap-1 px-3 py-1.5 transition-colors',
+                active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <tab.icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <tab.icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+              <span className="text-xs font-medium">{tab.label}</span>
             </Link>
           )
         })}
       </div>
     </nav>
-  )
-}
-
-export function MobileSidebarSheet() {
-  const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
-  const pathname = usePathname()
-
-  return (
-    <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-      <SheetContent side="left" className="w-72 p-0 bg-sidebar">
-        <div className="flex items-center px-4 h-16">
-          <Logo size={28} />
-        </div>
-        <Separator className="bg-sidebar-border" />
-        <ScrollArea className="h-[calc(100vh-4rem)] px-3 py-4">
-          <Link
-            href="/hub"
-            onClick={() => setMobileSidebarOpen(false)}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-md text-sm mb-3',
-              pathname === '/hub'
-                ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                : 'text-muted-foreground'
-            )}
-          >
-            <Home className="h-4 w-4" />
-            Hub
-          </Link>
-
-          <span className="px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-            Categorías
-          </span>
-
-          <div className="mt-2 space-y-1">
-            {AGENT_CATEGORIES.map((cat) => {
-              const Icon = cat.icon
-              return (
-                <Link
-                  key={cat.id}
-                  href={`/agents?category=${cat.id}`}
-                  onClick={() => setMobileSidebarOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                >
-                  <Icon className="h-4 w-4" style={{ color: cat.color }} />
-                  {cat.label}
-                </Link>
-              )
-            })}
-          </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
   )
 }
