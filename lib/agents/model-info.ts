@@ -29,8 +29,6 @@ export function getModelsByProvider(provider: string): ModelInfo[] {
   return MODEL_CATALOG.filter((m) => m.provider === provider)
 }
 
-export const TIER_LABELS: Record<ModelTier, { label: string; badge: string; color: string }> = {
-  economy: { label: 'Económico', badge: '$', color: 'green' },
-  standard: { label: 'Estándar', badge: '$$', color: 'blue' },
-  premium: { label: 'Premium', badge: '$$$', color: 'purple' },
-}
+// TIER_LABELS vive ahora en lib/utils/tier.ts, junto con las utilidades que
+// traducen el tier a clases. Acá había una copia con un campo `color` de
+// nombres sueltos ('green', 'blue', 'purple') que ya nadie usa.
