@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { fadeIn } from '@/lib/motion/variants'
 
 export interface ProfileData {
   email: string
@@ -23,10 +23,10 @@ export interface ProfileData {
   editable: boolean
 }
 
-const PROGRAM_LABELS: Record<ProfileData['program'], { label: string; className: string }> = {
-  club: { label: 'Club', className: 'bg-club/20 text-club' },
-  elite: { label: 'Elite', className: 'bg-elite/20 text-elite' },
-  trial: { label: 'Prueba', className: '' },
+const PROGRAM_LABELS: Record<ProfileData['program'], string> = {
+  club: 'Club',
+  elite: 'Elite',
+  trial: 'Prueba',
 }
 
 function initials(name: string, email: string): string {
@@ -40,7 +40,7 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
   const [name, setName] = useState(profile.displayName)
   const [saving, setSaving] = useState(false)
 
-  const program = PROGRAM_LABELS[profile.program]
+  const programLabel = PROGRAM_LABELS[profile.program]
   const dirty = name.trim() !== profile.displayName.trim()
 
   async function handleSave() {
@@ -65,83 +65,86 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Tu perfil</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt="" />}
-              <AvatarFallback className="bg-brand/20 text-brand text-xl font-semibold">
-                {initials(profile.displayName, profile.email)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="font-medium truncate">
-                {profile.displayName || 'Sin nombre'}
-              </p>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className={program.className}>
-                  {program.label}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {profile.dailyLimit} ejecuciones por día
-                </span>
-              </div>
+    <motion.div variants={fadeIn} initial="hidden" animate="visible">
+      <div className="max-w-md rounded-lg border border-border bg-card p-6">
+        <h2 className="text-lg text-foreground">Tu perfil</h2>
+
+        <div className="mt-6 flex items-center gap-4">
+          <Avatar size="lg">
+            {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt="" />}
+            <AvatarFallback className="text-lg">
+              {initials(profile.displayName, profile.email)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">
+              {profile.displayName || 'Sin nombre'}
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge
+                variant={profile.program === 'elite' ? 'elite' : 'secondary'}
+              >
+                {programLabel}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {profile.dailyLimit} ejecuciones por día
+              </span>
             </div>
           </div>
+        </div>
 
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="display-name">Nombre</Label>
-              <Input
-                id="display-name"
-                placeholder="Tu nombre"
-                value={name}
-                maxLength={200}
-                disabled={!profile.editable || saving}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={profile.email} disabled />
-              <p className="text-[10px] text-muted-foreground">
-                Es con el que iniciás sesión, así que no se puede cambiar desde acá.
-              </p>
-            </div>
+        <div className="mt-6 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="display-name" className="text-sm font-medium text-foreground">
+              Nombre
+            </Label>
+            <Input
+              id="display-name"
+              placeholder="Tu nombre"
+              value={name}
+              maxLength={200}
+              disabled={!profile.editable || saving}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
+              Email
+            </Label>
+            <Input id="email" type="email" value={profile.email} disabled />
+            <p className="text-xs text-muted-foreground">
+              Es con el que iniciás sesión, así que no se puede cambiar desde acá.
+            </p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              className="bg-brand hover:bg-brand-dark text-white"
-              disabled={!profile.editable || saving || !dirty}
-              onClick={handleSave}
-            >
-              {saving ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Guardando...
-                </span>
-              ) : (
-                'Guardar cambios'
-              )}
-            </Button>
-            {!profile.editable && (
-              <p className="text-xs text-muted-foreground">
-                Sin Supabase configurado, el perfil es de solo lectura.
-              </p>
+        <div className="mt-6 flex items-center gap-3">
+          <Button
+            variant="default"
+            disabled={!profile.editable || saving || !dirty}
+            onClick={handleSave}
+          >
+            {saving ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin" />
+                Guardando...
+              </span>
+            ) : (
+              'Guardar cambios'
             )}
-          </div>
+          </Button>
+          {!profile.editable && (
+            <p className="text-xs text-muted-foreground">
+              Sin Supabase configurado, el perfil es de solo lectura.
+            </p>
+          )}
+        </div>
 
-          <p className="text-xs text-muted-foreground">
-            Tu programa lo asigna el equipo de AntoEcom y define cuántas ejecuciones
-            tenés por día. Si creés que el tuyo está mal, escribinos.
-          </p>
-        </CardContent>
-      </Card>
+        <p className="mt-6 text-xs text-muted-foreground">
+          Tu programa lo asigna el equipo de AntoEcom y define cuántas ejecuciones tenés por día.
+          Si creés que el tuyo está mal, escribinos.
+        </p>
+      </div>
     </motion.div>
   )
 }
