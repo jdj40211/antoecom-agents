@@ -29,14 +29,6 @@ const PROVIDER_FALLBACK_ORDER: EnhanceProvider[] = ['anthropic', 'openai', 'goog
 /** Tope por campo, igual que en `/api/agents/run`. */
 const MAX_FIELD_LENGTH = 20_000
 
-const PREMIUM_PROGRAM = 'elite'
-
-const PROGRAM_LABELS: Record<string, string> = {
-  trial: 'Trial',
-  club: 'Club',
-  elite: 'Elite',
-}
-
 interface EnhanceRequestBody {
   agentSlug: string
   fieldKey: string
@@ -213,39 +205,8 @@ export async function POST(request: NextRequest) {
       ? await (await import('@/lib/supabase/server')).createClient()
       : null
 
-    // Sin Supabase (solo en local) no hay perfil que consultar.
-    let program = PREMIUM_PROGRAM
-
-    if (supabase) {
-      const { data: profile, error: profileError } = await supabase
-        .from('community_profiles')
-        .select('program')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (profileError) {
-        console.error('[enhance] community_profiles query error:', profileError.message)
-        return Response.json(
-          {
-            error:
-              'No pudimos verificar tu plan en este momento. Probá de nuevo en unos segundos.',
-          },
-          { status: 503 }
-        )
-      }
-
-      program = (profile?.program as string | null) ?? 'trial'
-    }
-
-    if (agent.isPremium && program !== PREMIUM_PROGRAM) {
-      return Response.json(
-        {
-          error: `"${agent.name}" es un agente Elite y tu cuenta está en el plan ${PROGRAM_LABELS[program] ?? program}. Pasate a Elite desde la comunidad de AntoEcom para desbloquearlo.`,
-          requiresProgram: PREMIUM_PROGRAM,
-        },
-        { status: 403 }
-      )
-    }
+    // Acá vivía el mismo gate de agentes Elite que en `/api/agents/run`. Se fue
+    // con los programas: mejorar un campo está disponible para todos.
 
     // ---- Límite de ritmo ----
     //
@@ -255,7 +216,7 @@ export async function POST(request: NextRequest) {
     // misma cuota que un run porque es la misma llamada al mismo proveedor con
     // la misma key.
     if (supabase) {
-      const hourly = await checkHourlyRateLimit(user.id, program)
+      const hourly = await checkHourlyRateLimit(user.id)
 
       if (!hourly.allowed) {
         return Response.json(
@@ -322,7 +283,7 @@ export async function POST(request: NextRequest) {
     let reservation: ReservationResult | null = null
 
     if (supabase) {
-      reservation = await reserveAgentRun(user.id, program, provider)
+      reservation = await reserveAgentRun(user.id, provider)
 
       if (!reservation.allowed) {
         return Response.json(

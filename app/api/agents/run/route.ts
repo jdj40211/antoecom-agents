@@ -24,15 +24,6 @@ export const maxDuration = 300
  */
 const MAX_INPUT_FIELD_LENGTH = 20_000
 
-/** Programa que habilita los agentes marcados `isPremium` en el catálogo. */
-const PREMIUM_PROGRAM = 'elite'
-
-const PROGRAM_LABELS: Record<string, string> = {
-  trial: 'Trial',
-  club: 'Club',
-  elite: 'Elite',
-}
-
 interface RunRequestBody {
   agentSlug: string
   input: Record<string, string>
@@ -244,59 +235,21 @@ export async function POST(request: NextRequest) {
       ? await (await import('@/lib/supabase/server')).createClient()
       : null
 
-    // ---- Programa del usuario ----
-    //
-    // Sin Supabase no hay perfil que consultar y `getUser()` solo devuelve el
-    // usuario de dev fuera de producción, así que en local se trabaja con todos
-    // los agentes desbloqueados.
-    let program = PREMIUM_PROGRAM
-
-    if (supabase) {
-      const { data: profile, error: profileError } = await supabase
-        .from('community_profiles')
-        .select('program')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      // Antes el error se descartaba con destructuring y se caía a 'trial'. Un
-      // timeout de Supabase dejaba a un Elite evaluado con límites de Trial y le
-      // contestaba que llegó al límite de un plan que no es el suyo. No tener
-      // fila (usuario nuevo) y no poder leerla son cosas distintas: la primera
-      // es 'trial', la segunda es un error nuestro y se dice como tal.
-      if (profileError) {
-        console.error('[run] community_profiles query error:', profileError.message)
-        return Response.json(
-          {
-            error:
-              'No pudimos verificar tu plan en este momento. Probá de nuevo en unos segundos.',
-          },
-          { status: 503 }
-        )
-      }
-
-      program = (profile?.program as string | null) ?? 'trial'
-    }
-
-    // ---- Gate de agentes Elite ----
-    //
-    // `isPremium` solo pintaba un badge: cualquier usuario que apretara Ejecutar
-    // corría el agente igual. El badge es la señal visual, esto es el candado.
-    if (agent.isPremium && program !== PREMIUM_PROGRAM) {
-      return Response.json(
-        {
-          error: `"${agent.name}" es un agente Elite y tu cuenta está en el plan ${PROGRAM_LABELS[program] ?? program}. Pasate a Elite desde la comunidad de AntoEcom para desbloquearlo.`,
-          requiresProgram: PREMIUM_PROGRAM,
-        },
-        { status: 403 }
-      )
-    }
+    // Acá vivía el gate de agentes Elite: leía `community_profiles.program` y le
+    // negaba siete agentes del catálogo a quien no fuera elite. Se fue junto
+    // con los programas. Todos los agentes están disponibles para todos, y lo
+    // único que se le sigue pidiendo al usuario es su propia API key, que es
+    // quien paga los tokens.
 
     // ---- Límite de ritmo por hora ----
+    //
+    // Ya no depende del programa: el límite es uno solo y alto, y está para
+    // frenar un bucle o una pestaña colgada, no para racionar por plan.
     //
     // El diario se resuelve más abajo, con la reserva atómica, para no gastarlo
     // si el usuario ni siquiera tiene la API key configurada.
     if (supabase) {
-      const hourly = await checkHourlyRateLimit(user.id, program)
+      const hourly = await checkHourlyRateLimit(user.id)
 
       if (!hourly.allowed) {
         return Response.json(
@@ -399,7 +352,7 @@ export async function POST(request: NextRequest) {
     let reservation: ReservationResult | null = null
 
     if (supabase) {
-      reservation = await reserveAgentRun(user.id, program, providerName)
+      reservation = await reserveAgentRun(user.id, providerName)
 
       if (!reservation.allowed) {
         return Response.json(

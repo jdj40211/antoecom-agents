@@ -161,12 +161,9 @@ function AgentCard({ agent }: { agent: AgentDef }) {
       title={agent.name}
       description={agent.description}
       badges={
-        <>
-          {agent.isPremium ? <Badge variant="elite">Elite</Badge> : null}
-          <Badge variant="outline" className={tierBadgeClass(agent.modelTier)}>
-            {TIER_LABELS[agent.modelTier].label}
-          </Badge>
-        </>
+        <Badge variant="outline" className={tierBadgeClass(agent.modelTier)}>
+          {TIER_LABELS[agent.modelTier].label}
+        </Badge>
       }
     />
   )

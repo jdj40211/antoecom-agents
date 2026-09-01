@@ -6,7 +6,6 @@ import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,17 +15,17 @@ export interface ProfileData {
   email: string
   displayName: string
   avatarUrl: string
-  program: 'club' | 'elite' | 'trial'
-  /** Cuántas ejecuciones por día le tocan según su programa. */
-  dailyLimit: number
+  /**
+   * Ejecuciones que lleva hoy, sumando todos los proveedores.
+   *
+   * Acá estaban el badge del programa y el límite diario que le tocaba. Los dos
+   * describían una jerarquía que ya no existe: todos tienen los mismos agentes
+   * y el mismo tope, así que nombrarlo era hablar de un plan inventado. El dato
+   * que sí le sirve al usuario es cuánto lleva usado.
+   */
+  runsToday: number
   /** false en dev sin Supabase: se muestra el perfil pero no se puede guardar. */
   editable: boolean
-}
-
-const PROGRAM_LABELS: Record<ProfileData['program'], string> = {
-  club: 'Club',
-  elite: 'Elite',
-  trial: 'Prueba',
 }
 
 function initials(name: string, email: string): string {
@@ -40,7 +39,6 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
   const [name, setName] = useState(profile.displayName)
   const [saving, setSaving] = useState(false)
 
-  const programLabel = PROGRAM_LABELS[profile.program]
   const dirty = name.trim() !== profile.displayName.trim()
 
   async function handleSave() {
@@ -80,16 +78,11 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
             <p className="truncate text-sm font-medium text-foreground">
               {profile.displayName || 'Sin nombre'}
             </p>
-            <div className="mt-1 flex items-center gap-2">
-              <Badge
-                variant={profile.program === 'elite' ? 'elite' : 'secondary'}
-              >
-                {programLabel}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {profile.dailyLimit} ejecuciones por día
-              </span>
-            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {profile.runsToday === 1
+                ? '1 ejecución hoy'
+                : `${profile.runsToday} ejecuciones hoy`}
+            </p>
           </div>
         </div>
 
@@ -141,8 +134,8 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
         </div>
 
         <p className="mt-6 text-xs text-muted-foreground">
-          Tu programa lo asigna el equipo de AntoEcom y define cuántas ejecuciones tenés por día.
-          Si creés que el tuyo está mal, escribinos.
+          Todos los agentes están disponibles para tu cuenta. El detalle de tu consumo lo
+          tenés en Uso.
         </p>
       </div>
     </motion.div>
