@@ -8,10 +8,21 @@ export const googleProvider: AIProvider = {
 
   async verifyKey(apiKey: string) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      )
-      return { valid: res.ok, error: res.ok ? undefined : `${res.status} ${res.statusText}` }
+      // La key va por header, no por query string: en la URL queda expuesta
+      // en logs de acceso y proxies intermedios.
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': apiKey },
+      })
+
+      if (res.ok) return { valid: true }
+
+      // 401/403 = key mala. Cualquier otro código (429, 5xx, etc.) no dice
+      // nada sobre la validez de la key: no la marcamos mal.
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, error: `Google AI: ${res.status} ${res.statusText}` }
+      }
+
+      return { valid: true, error: `Google AI respondió ${res.status}, la key parece válida` }
     } catch {
       return { valid: false, error: 'Connection failed' }
     }
@@ -19,6 +30,7 @@ export const googleProvider: AIProvider = {
 
   stream(config: ProviderConfig) {
     const google = createGoogleGenerativeAI({ apiKey: config.apiKey })
+    const abortController = new AbortController()
 
     const result = streamText({
       model: google(config.model),
@@ -26,9 +38,10 @@ export const googleProvider: AIProvider = {
       prompt: config.userPrompt,
       maxOutputTokens: config.maxTokens,
       temperature: config.temperature,
+      abortSignal: abortController.signal,
     })
 
-    return toStreamResult(result)
+    return toStreamResult(result, abortController)
   },
 
   listModels() {
