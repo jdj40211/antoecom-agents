@@ -18,6 +18,38 @@ const PROVIDERS: Record<string, AIProvider> = {
   openrouter: openrouterProvider,
 }
 
+// Sin límite, este endpoint es un oráculo de credenciales: cualquier usuario
+// autenticado puede probar keys de origen dudoso contra los 4 proveedores y
+// leer en la respuesta si son válidas, usando el tráfico del proyecto como
+// proxy. Se limita por usuario con una ventana deslizante.
+//
+// Nota: es un Map en memoria del proceso, igual que lib/store/dev-keys.ts.
+// En una sola instancia de servidor (o en dev) corta de verdad. En un
+// deploy serverless con múltiples instancias no comparte estado entre ellas,
+// así que el límite real termina siendo N intentos por instancia, no por
+// usuario. Para cerrar eso del todo hace falta contar en un store
+// compartido (una tabla en Supabase o Redis), fuera del alcance de este
+// archivo.
+const VERIFY_RATE_LIMIT_WINDOW_MS = 60_000
+const VERIFY_RATE_LIMIT_MAX_ATTEMPTS = 10
+const verifyAttemptsByUser = new Map<string, number[]>()
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now()
+  const recent = (verifyAttemptsByUser.get(userId) ?? []).filter(
+    (timestamp) => now - timestamp < VERIFY_RATE_LIMIT_WINDOW_MS
+  )
+
+  if (recent.length >= VERIFY_RATE_LIMIT_MAX_ATTEMPTS) {
+    verifyAttemptsByUser.set(userId, recent)
+    return true
+  }
+
+  recent.push(now)
+  verifyAttemptsByUser.set(userId, recent)
+  return false
+}
+
 async function verifyProviderKey(
   provider: string,
   apiKey: string
@@ -39,6 +71,13 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) return unauthorizedResponse()
+
+    if (isRateLimited(user.id)) {
+      return NextResponse.json(
+        { valid: false, error: 'Demasiados intentos de verificación. Esperá un minuto e intentá de nuevo.' },
+        { status: 429 }
+      )
+    }
 
     const body: unknown = await request.json()
 

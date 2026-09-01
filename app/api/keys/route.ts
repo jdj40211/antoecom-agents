@@ -3,6 +3,35 @@ import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
 import { encryptApiKey, getKeyHint } from '@/lib/crypto/key-manager'
 import { getDevKeys, setDevKey, deleteDevKey } from '@/lib/store/dev-keys'
 import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
+import { anthropicProvider } from '@/lib/agents/providers/anthropic'
+import { openaiProvider } from '@/lib/agents/providers/openai'
+import { googleProvider } from '@/lib/agents/providers/google'
+import { openrouterProvider } from '@/lib/agents/providers/openrouter'
+import type { AIProvider } from '@/lib/agents/providers/base'
+
+// Mismos providers que /api/keys/verify. El PUT guardaba antes cualquier
+// string como key válida sin llamar nunca a verifyKey (hallazgo de
+// auditoría): is_valid mentía. Ahora se verifica acá también.
+const PROVIDERS: Record<string, AIProvider> = {
+  anthropic: anthropicProvider,
+  openai: openaiProvider,
+  google: googleProvider,
+  openrouter: openrouterProvider,
+}
+
+async function verifyProviderKey(
+  provider: string,
+  apiKey: string
+): Promise<{ valid: boolean; error: string }> {
+  const instance = PROVIDERS[provider]
+
+  if (!instance) {
+    return { valid: false, error: `Todavía no soportamos ${provider}.` }
+  }
+
+  const result = await instance.verifyKey(apiKey)
+  return { valid: result.valid, error: result.error ?? '' }
+}
 
 interface KeyResponse {
   provider: string
@@ -77,6 +106,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'provider and apiKey must be non-empty strings' }, { status: 400 })
     }
 
+    const { valid, error } = await verifyProviderKey(provider, apiKey)
     const hint = getKeyHint(apiKey)
     const now = new Date().toISOString()
 
@@ -93,9 +123,9 @@ export async function PUT(request: NextRequest) {
             provider,
             encrypted_key: encrypted,
             key_hint: hint,
-            is_valid: true,
+            is_valid: valid,
             last_verified_at: now,
-            verification_error: null,
+            verification_error: valid ? null : error,
           },
           { onConflict: 'user_id,provider' }
         )
@@ -109,13 +139,17 @@ export async function PUT(request: NextRequest) {
         provider,
         encryptedKey: apiKey,
         keyHint: hint,
-        isValid: true,
+        isValid: valid,
         lastVerifiedAt: now,
-        verificationError: null,
+        verificationError: valid ? null : error,
       })
     }
 
-    return NextResponse.json({ success: true, provider, hint })
+    if (!valid) {
+      return NextResponse.json({ success: true, provider, hint, isValid: false, error })
+    }
+
+    return NextResponse.json({ success: true, provider, hint, isValid: true })
   } catch (err) {
     console.error('PUT key error:', err)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
