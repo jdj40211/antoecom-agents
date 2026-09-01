@@ -17,6 +17,7 @@ function LoginForm() {
   const next = searchParams.get('next') ?? '/hub'
 
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(searchParams.get('error') ?? '')
@@ -30,12 +31,58 @@ function LoginForm() {
     return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
   }
 
+  /**
+   * Lee el mensaje de error de la ruta de canje sin dar por hecho su forma: si
+   * el servidor devolvió HTML (un 500 del framework, por ejemplo), el JSON no
+   * parsea y hay que tener algo para mostrar igual.
+   */
+  async function errorDeRespuesta(res: Response): Promise<string> {
+    try {
+      const body: unknown = await res.json()
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'error' in body &&
+        typeof body.error === 'string'
+      ) {
+        return body.error
+      }
+    } catch {
+      // Sin JSON válido se cae al mensaje genérico de abajo.
+    }
+    return 'No pudimos validar tu acceso. Intentá de nuevo en un minuto.'
+  }
+
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault()
     if (!email) return
 
     setLoading(true)
     setError('')
+
+    // El código se valida en el servidor antes de pedir el magic link. Validarlo
+    // acá no serviría de nada: `supabase.auth` está en el bundle, así que
+    // cualquiera puede llamar a signInWithOtp desde la consola y saltearse el
+    // formulario entero. La ruta canjea contra la base y solo si responde bien
+    // se dispara el enlace.
+    let canje: Response
+    try {
+      canje = await fetch('/api/auth/redeem-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      })
+    } catch {
+      setLoading(false)
+      setError('No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.')
+      return
+    }
+
+    if (!canje.ok) {
+      setError(await errorDeRespuesta(canje))
+      setLoading(false)
+      return
+    }
 
     const supabase = createClient()
     const { error: otpError } = await supabase.auth.signInWithOtp({
@@ -125,6 +172,23 @@ function LoginForm() {
                   required
                   className="h-11"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="login-invite-code">Código de invitación</Label>
+                <Input
+                  id="login-invite-code"
+                  type="text"
+                  placeholder="CAMADA3-K7QX2M"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Solo la primera vez. Si ya entraste antes, dejalo vacío.
+                </p>
               </div>
               <Button
                 type="submit"
