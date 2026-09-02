@@ -15,6 +15,8 @@ const DEV_USER = {
 export interface SessionUser {
   id: string
   email: string
+  /** Habilita /admin. Se enciende solo desde el SQL editor, con set_admin(). */
+  isAdmin: boolean
 }
 
 /**
@@ -25,11 +27,20 @@ export interface SessionUser {
  * NULL, un campo que no vino o una fila que no existe son "no tiene acceso".
  */
 function tieneAcceso(fila: unknown): boolean {
+  return leeBandera(fila, 'access_granted')
+}
+
+/** Igual que `tieneAcceso`, para el flag de administrador. */
+function esAdmin(fila: unknown): boolean {
+  return leeBandera(fila, 'is_admin')
+}
+
+function leeBandera(fila: unknown, campo: string): boolean {
   return (
     typeof fila === 'object' &&
     fila !== null &&
-    'access_granted' in fila &&
-    fila.access_granted === true
+    campo in fila &&
+    (fila as Record<string, unknown>)[campo] === true
   )
 }
 
@@ -62,7 +73,9 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
     //
     // El usuario de dev no pasa por el chequeo de acceso: no hay base donde
     // consultarlo, y hacerlo fallar cerrado dejaría el entorno local inservible.
-    return isDevBypassAllowed() ? { ...DEV_USER } : null
+    // En local el usuario de dev es admin, si no /admin sería imposible de
+    // desarrollar sin un proyecto de Supabase detrás.
+    return isDevBypassAllowed() ? { ...DEV_USER, isAdmin: true } : null
   }
 
   const supabase = await createClient()
@@ -77,7 +90,7 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
   // esta consulta no necesita más permisos que la sesión que ya tenemos.
   const { data: perfil, error: perfilError } = await supabase
     .from('community_profiles')
-    .select('access_granted')
+    .select('access_granted, is_admin')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -88,7 +101,7 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
 
   if (!tieneAcceso(perfil)) return null
 
-  return { id: user.id, email: user.email ?? '' }
+  return { id: user.id, email: user.email ?? '', isAdmin: esAdmin(perfil) }
 })
 
 /**
@@ -101,11 +114,43 @@ export async function requireUser(): Promise<SessionUser> {
   return user
 }
 
+/**
+ * Devuelve el usuario solo si es administrador. Lanza si no lo es.
+ *
+ * Ojo con el error que lanza según el caso: a un usuario común que escriba
+ * /admin a mano se le responde como si la ruta no existiera, en vez de decirle
+ * que no tiene permiso. Confirmarle que existe un panel de administración es
+ * regalarle la mitad del trabajo a quien esté buscando por dónde entrar.
+ */
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await getUser()
+  if (!user) throw new UnauthorizedError()
+  if (!user.isAdmin) throw new NotFoundError()
+  return user
+}
+
 export class UnauthorizedError extends Error {
   constructor() {
     super('No autenticado')
     this.name = 'UnauthorizedError'
   }
+}
+
+/**
+ * Se usa cuando alguien pide algo a lo que no llega. Se llama "no encontrado" y
+ * no "prohibido" a propósito: ver el mismo 404 que vería con una URL inventada
+ * no le dice nada sobre qué existe del otro lado.
+ */
+export class NotFoundError extends Error {
+  constructor() {
+    super('No encontrado')
+    this.name = 'NotFoundError'
+  }
+}
+
+/** Respuesta 404 para las rutas de API que no le corresponden a este usuario. */
+export function notFoundResponse(): Response {
+  return Response.json({ error: 'No encontrado.' }, { status: 404 })
 }
 
 /** Respuesta 401 estándar para las rutas de API. */
