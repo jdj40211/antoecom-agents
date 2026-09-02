@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Search, LogOut, User } from 'lucide-react'
+import { Search, LogOut, User, Shield } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -13,7 +13,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Logo } from './Logo'
 
-export function Topbar({ userEmail }: { userEmail: string }) {
+export function Topbar({
+  userEmail,
+  isAdmin = false,
+}: {
+  userEmail: string
+  /** El acceso a /admin vive acá además del sidebar: es la única
+   *  navegación que también se ve en el celular. */
+  isAdmin?: boolean
+}) {
   const initial = (userEmail.trim()[0] ?? 'U').toUpperCase()
 
   async function handleSignOut() {
@@ -58,6 +66,14 @@ export function Topbar({ userEmail }: { userEmail: string }) {
                 Mi perfil
               </Link>
             </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem className="gap-2 cursor-pointer">
+                <Link href="/admin" className="flex w-full items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Administración
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="gap-2 cursor-pointer text-destructive"

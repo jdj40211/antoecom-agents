@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home, Bot, History, Bookmark, TrendingUp, Settings } from 'lucide-react'
+import { Home, Bot, History, Bookmark, TrendingUp, Settings, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUserKeys } from '@/lib/store/user-keys'
 import { Logo } from './Logo'
@@ -22,7 +22,7 @@ const NAV_LINKS = [
  * `/agents` ya resuelve con filtros. Explorar agentes ahora es tarea de esa
  * pantalla, no del shell.
  */
-export function AppSidebar() {
+export function AppSidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const { ready, hasAnyValidKey } = useUserKeys()
   const settingsActive = pathname.startsWith('/settings')
@@ -39,6 +39,17 @@ export function AppSidebar() {
           const active = link.href === '/hub' ? pathname === link.href : pathname.startsWith(link.href)
           return <SidebarLink key={link.href} {...link} active={active} />
         })}
+
+        {/* Separado del resto: administrar la comunidad no es una tarea del
+            día a día, y así no compite con lo que se usa siempre. */}
+        {isAdmin && (
+          <SidebarLink
+            href="/admin"
+            label="Administración"
+            icon={Shield}
+            active={pathname.startsWith('/admin')}
+          />
+        )}
       </nav>
 
       <div className="mt-auto shrink-0 border-t border-sidebar-border px-2.5 py-3">
