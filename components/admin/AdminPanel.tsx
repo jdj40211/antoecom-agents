@@ -286,7 +286,7 @@ export function AdminPanel({
               description="Acá vas a ver quién entró y con qué código."
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="scrollbar-subtle overflow-x-auto">
               <ul className="min-w-[420px] space-y-2">
                 {canjes.map((r) => (
                   <li
