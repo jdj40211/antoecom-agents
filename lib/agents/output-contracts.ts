@@ -88,8 +88,12 @@ ${CLOSING}`,
 Paso 0, antes de escribir (no es una sección de la salida): cruzá los datos que te dieron.
    compras × precio contra gasto × ROAS; CPA × compras contra gasto;
    CPM = gasto / impresiones × 1000.
-   Si no cuadran, el diagnóstico es "revisá el tracking (value del evento Purchase / CAPI)"
-   y las 3 acciones son de medición, no de presupuesto.
+   Si no cuadran, el diagnóstico es "revisá el tracking (value del evento Purchase / CAPI)",
+   la acción 1 es de medición y las otras 2 siguen siendo sobre la campaña, con las métricas
+   que sí cuadran (CTR, frecuencia, CPM no dependen del value). Una campaña con frecuencia
+   en rojo no se queda sin acción porque el tracking esté mal.
+   El grado y el score se calculan sobre las métricas que cuadran; las que no, van en la
+   tabla con Estado "⚪ no confiable" y sin desviación.
 1. Una línea de encabezado: grado A-F y score /100. La confianza va solo en la última línea.
    Si los benchmarks están en USD y los datos vienen en COP o MXN, declará ahí mismo la TRM
    que usás ("TRM asumida 4.000") y compará ratios (CTR, ROAS, frecuencia, CVR) antes que
@@ -225,9 +229,11 @@ ${CLOSING}`,
    Canal es la plataforma real (1688, AliExpress, CJ, Dropi, proveedor local).
    PROHIBIDO inventar precios, ratings o nombres de proveedores puntuales. Si no lo sabés
    con certeza, la celda dice "verificalo vos" y el paso 4 dice cómo.
-   MOQ y Plazo se llenan solo con lo que dice tu base de conocimiento. Si no está ahí, la
-   celda dice "verificalo vos: [dónde]". Un rango inventado ("300-500 unidades", "20-35
-   días marítimo") invalida la tabla entera.
+   MOQ y Plazo se llenan con lo que dice tu base de conocimiento. Si ahí hay un rango o una
+   regla, va en la celda. Si no hay nada, la celda lleva un valor asumido y marcado, más dónde
+   confirmarlo: "15 a 30 días (asumido; confirmalo en el campo Lead time de la ficha)".
+   Una celda que solo dice "verificalo vos" no sirve para elegir canal. Lo que sigue prohibido
+   es el número sin marca de supuesto.
 2. "Estructura de costo": tabla | Concepto | Cómo se calcula |. Filas: producto, envío,
    impuestos, pasarela, devoluciones. Fórmulas, no cifras inventadas.
 3. "Negociación": 3 movimientos concretos, cada uno con la frase textual a mandar.
