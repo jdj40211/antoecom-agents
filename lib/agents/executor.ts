@@ -18,10 +18,16 @@ interface TierConfig {
   temperature: number
 }
 
+// `maxTokens` es un techo, no un consumo: el usuario paga lo que el modelo
+// escribe, no lo que le dejamos escribir. Los valores viejos (2048 / 4096 /
+// 6144) venían de modelos que ya no usamos y cortaban a mitad de frase a los
+// agentes que piden varias variantes: 2048 tokens son unas 1500 palabras en
+// español, y Caption Generator solo, con 5 captions de 300 palabras, ya las
+// gastaba antes de los hashtags.
 const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
-  economy: { maxTokens: 2048, temperature: 0.7 },
-  standard: { maxTokens: 4096, temperature: 0.6 },
-  premium: { maxTokens: 6144, temperature: 0.4 },
+  economy: { maxTokens: 4096, temperature: 0.7 },
+  standard: { maxTokens: 8192, temperature: 0.6 },
+  premium: { maxTokens: 16384, temperature: 0.4 },
 }
 
 /**

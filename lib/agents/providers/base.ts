@@ -40,7 +40,19 @@ interface AiSdkStreamLike {
     outputTokens: number | undefined
     totalTokens: number | undefined
   }>
+  finishReason: PromiseLike<string>
 }
+
+/**
+ * Nota que se agrega al final cuando el modelo se quedó sin tokens.
+ *
+ * Nadie leía `finishReason`, así que una respuesta cortada a mitad de frase
+ * llegaba a la pantalla igual que una completa: el usuario se llevaba tres de
+ * las cinco variantes que pidió sin enterarse de que faltaban dos.
+ */
+const TRUNCATED_NOTICE =
+  '\n\n---\n\n**La respuesta se cortó**: el modelo llegó al límite de longitud. ' +
+  'Pedí menos variantes, acortá el texto que pegaste, o volvé a ejecutarlo por partes.'
 
 /**
  * Convierte el resultado de `streamText` en bytes y expone el uso de tokens.
@@ -72,6 +84,18 @@ export function toStreamResult(
         for await (const chunk of result.textStream) {
           controller.enqueue(encoder.encode(chunk))
         }
+
+        // Va dentro del try y antes del close: si el modelo se quedó sin
+        // tokens, el aviso viaja por el mismo stream que el texto y aparece
+        // pegado al final, sin tocar la UI.
+        try {
+          if ((await result.finishReason) === 'length') {
+            controller.enqueue(encoder.encode(TRUNCATED_NOTICE))
+          }
+        } catch {
+          // Si el provider no lo reporta, no avisamos. No es motivo de error.
+        }
+
         controller.close()
       } catch (error) {
         controller.error(error)
