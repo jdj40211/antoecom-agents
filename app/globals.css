@@ -77,6 +77,11 @@
 }
 
 :root {
+  /* El navegador pinta las barras de scroll, los controles nativos y el
+     autofill según esto. Sin declararlo asume claro, y las barras salían
+     blancas sobre el fondo casi negro. */
+  color-scheme: dark;
+
   /* Neutros: escala de un solo hue frío casi imperceptible (285) */
   --background: oklch(0.13 0.005 285);        /* fondo de la app, casi negro */
   --foreground: oklch(0.93 0 0);              /* texto principal */
@@ -138,6 +143,29 @@
    recomendada sigue siendo la utilidad `shadow-overlay`. */
 .shadow-\[--shadow-overlay\] {
   box-shadow: var(--shadow-overlay);
+}
+
+/* Barra de scroll discreta para carruseles horizontales (los filtros de
+   categoría, las tablas del panel). La nativa de macOS se esconde sola, pero en
+   Windows y Linux ocupa un carril fijo que corta el diseño. */
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
 }
 
 @layer base {

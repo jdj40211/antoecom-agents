@@ -77,7 +77,7 @@ function AgentsPageContent() {
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="scrollbar-subtle flex gap-2 overflow-x-auto pb-1">
           <CategoryPill active={activeCategory === 'all'} onClick={() => setCategory('all')}>
             Todos
           </CategoryPill>
