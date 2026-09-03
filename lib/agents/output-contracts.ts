@@ -19,8 +19,13 @@
 // compiten con el contrato. En vez de reescribir 271 bullets a mano y arriesgar
 // perder reglas de negocio en el camino, se declara la precedencia: el contrato
 // gana. Las reglas viejas siguen aportando el criterio de qué mirar.
+//
+// La línea de confianza vive acá y no solo en EVIDENCE_RULES porque el "Nada
+// más" de abajo le ganaba: en la evaluación de septiembre de 2026, 23 de 28
+// salidas la omitieron. Solo la escribían los contratos que la nombraban.
 const CLOSING =
-  'Nada más. Sin introducción y sin conclusión.\n' +
+  'Última línea, siempre: "Confianza: alta | media | baja" (una de las tres), seguida de los\n' +
+  'datos que asumiste si hubo alguno. Nada más después de eso. Sin introducción y sin conclusión.\n' +
   'Si alguna regla de más arriba contradice este formato, mandá este formato.'
 
 export const OUTPUT_CONTRACTS: Record<string, string> = {
@@ -36,11 +41,15 @@ ${CLOSING}`,
 
   'ugc-scripts': `FORMATO DE SALIDA
 Por cada variación (2 o 3), en este orden:
-1. Título: "Variación N — [ángulo de venta en 3 palabras]".
+1. Título: "Variación N — [ángulo de venta en 3 palabras]". Contá las tres antes de escribirlo.
 2. Tabla: | Tiempo | Cámara | Diálogo |. Una fila por beat, del 0-3s al cierre.
    El diálogo va literal, como lo diría una persona. Sin acotaciones dentro de la celda.
+   Nada de texto en otro idioma dentro del diálogo.
+   Si el producto es suplemento, cosmético o dispositivo, ningún diálogo fija un plazo de
+   resultado ni lo compara con un medicamento. El resultado se cuenta como escena vivida.
 3. "Texto en pantalla": la frase del hook, máximo 40 caracteres.
-4. "Producción": una línea con luz, props y locación. Sin viñetas.
+4. "Producción": una línea con luz, props y locación. Sin viñetas. Cuando el rubro lo pide
+   (suplemento, cosmético, alimento, dispositivo), esa línea incluye el aviso de compliance.
 Cerrá con "Cuál grabar primero" en una línea.
 ${CLOSING}`,
 
@@ -48,6 +57,12 @@ ${CLOSING}`,
 1. Entre 3 y 5 captions, cada uno como bloque numerado con el framework entre paréntesis.
    El caption va completo y listo para pegar, respetando el largo de la plataforma.
    Separá la primera línea (el hook) del cuerpo con un salto de línea.
+   Sin testimonios con nombre propio ni historias de clientas inventadas: la tensión
+   narrativa va en segunda persona, hablándole a quien lee.
+   Ningún atributo del producto que no venga del input: ni sabor, ni aroma, ni tiempo de
+   acción, ni ingredientes.
+   "Cartero" no existe en la contraentrega LATAM: quien entrega es un mensajero o un
+   domiciliario.
 2. Después de cada uno, una sola línea: "→ [por qué este engancha]". Máximo 15 palabras.
 3. "Hashtags": una línea (solo si la plataforma es Instagram).
 4. "El que yo publicaría": el número, y el motivo en media línea.
@@ -57,28 +72,59 @@ ${CLOSING}`,
 1. Tabla: | # | Hook | Tipo | Gatillo psicológico |. Mínimo 10 filas.
    El hook va literal, entre comillas, máximo 12 palabras, listo para decir en cámara.
    El gatillo en 2 o 3 palabras: curiosity gap, loss aversion, prueba social, pattern interrupt.
+   Un hook lleva cifra solo si la cifra viene del input. Si no te la dieron, el hook se
+   escribe sin cifra o con el hueco visible: "[tu cifra real] pedidos salieron esta semana".
+   Prohibido "según estudios", "según la ciencia" y "el X% de".
+   Ningún hook abre con "¿Sabías que", "¿Sabés", "Hola" ni "Hoy les traigo".
+   Ningún hook ataca la categoría ni el formato que el usuario vende: si vende gomitas de
+   10 mg, no escribís "las gomitas de 10 mg te arruinan el sueño".
 2. "Top 3": los tres números, cada uno con una línea de por qué.
-3. "Variantes A/B": del mejor, dos reescrituras que cambien una sola variable.
+3. "Variantes A/B": del mejor, dos reescrituras. Cada una cambia una sola palabra o una sola
+   variable, y dice cuál cambió.
 ${CLOSING}`,
 
   // ---------------------------------------------------------------- ads
   'meta-doctor': `FORMATO DE SALIDA
-1. Una línea de encabezado: grado A-F, score /100, y "Confianza: alta|media|baja".
+Paso 0, antes de escribir (no es una sección de la salida): cruzá los datos que te dieron.
+   compras × precio contra gasto × ROAS; CPA × compras contra gasto;
+   CPM = gasto / impresiones × 1000.
+   Si no cuadran, el diagnóstico es "revisá el tracking (value del evento Purchase / CAPI)",
+   la acción 1 es de medición y las otras 2 siguen siendo sobre la campaña, con las métricas
+   que sí cuadran (CTR, frecuencia, CPM no dependen del value). Una campaña con frecuencia
+   en rojo no se queda sin acción porque el tracking esté mal.
+   El grado y el score se calculan sobre las métricas que cuadran; las que no, van en la
+   tabla con Estado "⚪ no confiable" y sin desviación.
+1. Una línea de encabezado: grado A-F y score /100. La confianza va solo en la última línea.
+   Si los benchmarks están en USD y los datos vienen en COP o MXN, declará ahí mismo la TRM
+   que usás ("TRM asumida 4.000") y compará ratios (CTR, ROAS, frecuencia, CVR) antes que
+   valores absolutos.
 2. Tabla: | Métrica | Tu valor | Benchmark | Estado |. Una fila por métrica que te pasaron.
    Estado es 🔴 / 🟡 / 🟢 más la desviación ("−53%", "3.9x"). Sin párrafos entre filas.
 3. "Diagnóstico": UNA línea con la causa raíz. No la lista de síntomas: la causa.
 4. "Próximas 48 horas": exactamente 3 acciones numeradas. Cada una arranca con un verbo
    en imperativo y contiene un número (presupuesto, umbral, cantidad).
+   "Si X, entonces Y" no es una acción: es un condicional. Reescribilo como orden.
+   Prohibido subir presupuesto de una campaña en learning o con frecuencia mayor a 3.
+   Si eso es lo que te sale, la acción es otra.
 5. "Qué me falta": solo si hay datos que cambiarían el diagnóstico. Máximo 3, en una línea.
 ${CLOSING}`,
 
   'ad-copy-generator': `FORMATO DE SALIDA
 1. Tabla de variantes: | # | Ángulo | Headline | Texto principal | CTA |. Entre 3 y 5 filas.
    Todo el copy va literal y respeta los límites de caracteres de la plataforma.
-2. "Test A/B": qué variable cambia entre la 1 y la 2, en una línea. Una sola variable.
-3. "Empezá con": el número, con el motivo en media línea.
-4. "Compliance": solo si el producto toca una Special Ad Category o hace una afirmación
+   Cada celda de Headline y de Texto principal termina con su conteo de caracteres entre
+   paréntesis: "(34)" y "(118/125)". Si el texto se pasa del límite, la celda trae la
+   versión recortada, no la larga.
+   Si el público abarca dos países, el precio va en las dos monedas o la variante declara
+   a qué país le habla.
+   CTA prohibidas por débiles: "Más información", "Enviar", "Empezar", "Haz clic aquí".
+2. "Test A/B": las variantes 1 y 2 comparten texto principal y CTA; lo único que cambia es
+   el headline. Que la tabla lo muestre, y nombrá la variable en una línea.
+3. "Compliance": solo si el producto toca una Special Ad Category o hace una afirmación
    de resultado que Meta rechaza. Si no aplica, omití la sección entera.
+   Va antes de "Empezá con", siempre.
+4. "Empezá con": el número, con el motivo en media línea. Se elige entre las variantes que
+   pasaron Compliance.
 ${CLOSING}`,
 
   'audience-analyzer': `FORMATO DE SALIDA
@@ -99,7 +145,7 @@ ${CLOSING}`,
 ${CLOSING}`,
 
   'ads-auditor': `FORMATO DE SALIDA
-1. Encabezado: grado A-F, score /100, "Confianza: alta|media|baja".
+1. Encabezado: grado A-F y score /100. La confianza va solo en la última línea.
 2. Tabla de hallazgos: | Severidad | Área | Hallazgo | Acción | Plazo |.
    Severidad es 🔴 Crítico / 🟡 Alto / 🟢 Medio / ⚪ Bajo. Ordenada por severidad.
    El hallazgo es un hecho con número, no una impresión.
@@ -183,10 +229,19 @@ ${CLOSING}`,
    Canal es la plataforma real (1688, AliExpress, CJ, Dropi, proveedor local).
    PROHIBIDO inventar precios, ratings o nombres de proveedores puntuales. Si no lo sabés
    con certeza, la celda dice "verificalo vos" y el paso 4 dice cómo.
+   MOQ y Plazo se llenan con lo que dice tu base de conocimiento. Si ahí hay un rango o una
+   regla, va en la celda. Si no hay nada, la celda lleva un valor asumido y marcado, más dónde
+   confirmarlo: "15 a 30 días (asumido; confirmalo en el campo Lead time de la ficha)".
+   Una celda que solo dice "verificalo vos" no sirve para elegir canal. Lo que sigue prohibido
+   es el número sin marca de supuesto.
 2. "Estructura de costo": tabla | Concepto | Cómo se calcula |. Filas: producto, envío,
    impuestos, pasarela, devoluciones. Fórmulas, no cifras inventadas.
 3. "Negociación": 3 movimientos concretos, cada uno con la frase textual a mandar.
 4. "Verificá antes de pagar": 4 chequeos, cada uno con dónde se mira.
+   Si el producto es suplemento, alimento, cosmético o dispositivo, el primero de los cuatro
+   es el registro sanitario del país destino, con el organismo por nombre.
+5. "Recomendación": UN canal, no dos. El motivo va atado al volumen mensual y al destino que
+   te dieron, y cierra con qué hace el usuario esta semana.
 ${CLOSING}`,
 
   'product-descriptions': `FORMATO DE SALIDA
@@ -221,7 +276,6 @@ ${CLOSING}`,
    Δ con signo y porcentaje. Estado en 🔴 / 🟡 / 🟢.
 2. "Qué se movió": UNA línea con el cambio que explica el resto. La causa, no la lista.
 3. "Acciones": exactamente 3, numeradas, cada una con un número.
-4. "Confianza": alta | media | baja, con qué asumiste si no es alta.
 ${CLOSING}`,
 
   'roi-calculator': `FORMATO DE SALIDA
@@ -241,7 +295,6 @@ ${CLOSING}`,
 3. Tabla de fases: | Fase | Semanas | Objetivo medible | Inversión |. Máximo 4 fases.
    El objetivo es un número, no una intención ("100 ventas", no "validar el mercado").
 4. "Los 3 supuestos que te pueden matar": cada uno con cómo lo validás y en cuánto tiempo.
-5. "Confianza": alta | media | baja.
 ${CLOSING}`,
 
   'launch-checklist': `FORMATO DE SALIDA
@@ -262,7 +315,7 @@ ${CLOSING}`,
 
   // ---------------------------------------------------------------- cro
   'cro-auditor': `FORMATO DE SALIDA
-1. Encabezado: grado A-F, score /100, "Confianza: alta|media|baja".
+1. Encabezado: grado A-F y score /100. La confianza va solo en la última línea.
 2. Tabla de hallazgos: | Severidad | Dónde | Problema | Fix | Esfuerzo |.
    Dónde es la sección concreta (hero, PDP, checkout paso 2). Ordenada por severidad.
 3. "Los 3 de alto impacto y bajo esfuerzo": numerados, con el cambio exacto a hacer.
