@@ -23,3 +23,10 @@ y `npx tsx scripts/measure.mts despues` lee `salidas/despues/`. Los prompts no e
 - `scripts/check.mts`: métricas estáticas sobre el prompt (ejemplos, anti-relleno, contrato, evidencia, knowledge).
 - `scripts/dump-prompts.mts`: valida los casos contra el catálogo y vuelca los prompts.
 - `scripts/measure.mts`: assertions sobre la salida (preámbulo, hedging, muletillas, secciones, confianza, cifras sin origen, copia del few-shot, límites de caracteres).
+
+## Limitaciones del medidor
+
+`cifras-sin-origen` marca todo número que no esté en el input ni en el system prompt. No
+reconoce derivaciones legítimas: un CPM calculado (gasto / impresiones × 1000), un benchmark
+en USD convertido por TRM o un precio sin IVA (129.900 / 1,19) cuentan como "sin origen".
+Sirve para comparar fases entre sí, no como conteo absoluto de invenciones.

@@ -75,7 +75,7 @@ function validate(agents: AgentDef[], casos: readonly CasoAgente[]): string[] {
 
 function main() {
   const fase = process.argv[2]
-  if (fase !== 'antes' && fase !== 'despues') {
+  if (!/^[a-z0-9-]+$/.test(fase)) {
     console.error('Uso: npx tsx dump-prompts.mts <antes|despues>')
     process.exit(1)
   }

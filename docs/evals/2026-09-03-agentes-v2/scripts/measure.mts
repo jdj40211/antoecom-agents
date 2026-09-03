@@ -96,8 +96,11 @@ function checkSinPreambulo(output: string): AssertionResult<string> {
 }
 
 function checkSinDespedida(output: string): AssertionResult<string> {
-  const tail = lastNLines(output, 3).join(' | ')
-  const bad = /espero que|éxitos|avisame|en resumen|si necesit/i.test(tail)
+  // La línea de Confianza es obligatoria y va al final: no cuenta como despedida.
+  const tail = lastNLines(output, 3)
+    .filter((l) => !/^\s*\**Confianza/i.test(l))
+    .join(' | ')
+  const bad = /espero que (esto |te )?(sirva|ayude)|¡?éxitos!?|avisame|en resumen|si necesit\w* (algo|alguna|cualquier|más)/i.test(tail)
   return { pass: !bad, detail: tail.slice(0, 100) }
 }
 
@@ -128,13 +131,20 @@ function checkSinMuletillas(output: string, muletillas: string[]): AssertionResu
   return { pass: count === 0, detail: { count, found } }
 }
 
+// El gate REGISTRO hace que el título del contrato ("Verificá antes de pagar") salga
+// conjugado según el país ("Verifica antes de pagar"). Comparar sin tildes evita contar
+// como sección faltante lo que es la conjugación correcta.
+function sinTildes(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 function checkSeccionesContrato(output: string, slug: string): AssertionResult<{ presentes: number; esperadas: number; faltantes: string[] }> {
   const sections = extractContractSections(slug)
-  const lower = output.toLowerCase()
+  const lower = sinTildes(output.toLowerCase())
   const faltantes: string[] = []
   let presentes = 0
   for (const s of sections) {
-    if (lower.includes(s.toLowerCase())) presentes++
+    if (lower.includes(sinTildes(s.toLowerCase()))) presentes++
     else faltantes.push(s)
   }
   return { pass: sections.length > 0 && faltantes.length === 0, detail: { presentes, esperadas: sections.length, faltantes } }
@@ -273,7 +283,7 @@ function extractSystemFromPromptFile(content: string): string {
 
 function main() {
   const fase = process.argv[2]
-  if (fase !== 'antes' && fase !== 'despues') {
+  if (!/^[a-z0-9-]+$/.test(fase)) {
     console.error('Uso: npx tsx measure.mts <antes|despues>')
     process.exit(1)
   }

@@ -23,9 +23,9 @@
 | product-descriptions | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (4/4) | ❌ | ✅ (0) | 45L / 604p | no | — | |
 | shopify-section-builder | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (3/3) | ❌ | ❌ (26) | 197L / 667p | no | — | |
 | landing-page-builder | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ❌ | ✅ (0) | 103L / 1071p | no | — | |
-| performance-tracker | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (3/3) | ❌ | ✅ (2) | 15L / 336p | no | — | |
+| performance-tracker | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ❌ | ✅ (2) | 15L / 336p | no | — | |
 | roi-calculator | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ❌ | ❌ (22) | 26L / 250p | no | — | |
-| business-planner | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (3/3) | ❌ | ❌ (26) | 23L / 511p | no | — | |
+| business-planner | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ❌ | ❌ (26) | 23L / 511p | no | — | |
 | launch-checklist | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ❌ | ❌ (13) | 57L / 1145p | no | — | |
 | campaign-architect | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (3/3) | ❌ | ❌ (5) | 21L / 393p | no | — | |
 | cro-auditor | ❌ | ✅ | ✅ | ✅ (0) | ✅ (0) | ✅ (2/2) | ✅ | ❌ (5) | 16L / 330p | no | — | |
