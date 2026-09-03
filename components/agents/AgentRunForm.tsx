@@ -13,44 +13,40 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import type { AgentDef, InputField } from '@/lib/agents/catalog'
 import { getModelInfo } from '@/lib/agents/model-info'
-import { resolveProvider } from '@/lib/agents/resolve-provider'
+import { pickModel } from '@/lib/agents/pick-model'
+import { PROVIDER_NAMES } from '@/lib/agents/resolve-provider'
 import { useAgentRunStore } from '@/lib/store/agent-runs'
 import { useUserKeys } from '@/lib/store/user-keys'
-import { PROVIDERS } from '@/lib/utils/constants'
 import { tierLabel, tierTextClass } from '@/lib/utils/tier'
 
 export interface AgentRunFormProps {
   agent: AgentDef
   formData: Record<string, string>
   onFieldChange: (key: string, value: string) => void
-  selectedModel: string
-  onModelChange: (model: string) => void
   onRun: () => void
-}
-
-function providerLabel(provider: string): string {
-  return PROVIDERS.find((p) => p.id === provider)?.name ?? provider
 }
 
 export function AgentRunForm({
   agent,
   formData,
   onFieldChange,
-  selectedModel,
-  onModelChange,
   onRun,
 }: AgentRunFormProps) {
   const running = useAgentRunStore((state) => state.runs[agent.slug]?.running ?? false)
   const stopRun = useAgentRunStore((state) => state.stopRun)
   const { ready: keysReady, hasValidKey } = useUserKeys()
 
+  // El modelo no se elige: se deduce de los proveedores que el usuario tiene
+  // vinculados, con la misma función que usa la API. El servidor vuelve a
+  // decidir por su cuenta, así que esto es solo para mostrar qué va a correr y
+  // cuánto cuesta.
+  const linkedProviders = PROVIDER_NAMES.filter(hasValidKey)
+  const selectedModel = pickModel(agent, linkedProviders)
   const modelInfo = getModelInfo(selectedModel)
 
-  // Cada modelo se ejecuta con la key del usuario para ese proveedor. Sin esto
-  // el formulario se llenaba entero y el aviso de key faltante recién aparecía
-  // después de apretar Ejecutar.
-  const neededProvider = resolveProvider(selectedModel)
-  const missingKey = keysReady && !hasValidKey(neededProvider)
+  // Sin ninguna key no hay nada que correr, y conviene decirlo antes de que
+  // llene el formulario entero.
+  const noKeys = keysReady && linkedProviders.length === 0
 
   const requiredFields = Object.entries(agent.inputSchema).filter(([, field]) => field.required)
   const allRequiredFilled = requiredFields.every(([key]) => formData[key]?.trim())
@@ -72,55 +68,27 @@ export function AgentRunForm({
 
         <Separator />
 
-        <div className="space-y-2">
-          <Label htmlFor="model-select" className="text-sm font-medium text-foreground">
-            Modelo
-          </Label>
-          <Select
-            value={selectedModel}
-            onValueChange={(value: unknown) => {
-              if (typeof value === 'string') onModelChange(value)
-            }}
-          >
-            <SelectTrigger id="model-select" className="w-full">
-              <span className="truncate">{modelInfo?.name ?? selectedModel}</span>
-            </SelectTrigger>
-            <SelectContent>
-              {agent.allowedModels.map((modelId) => {
-                const info = getModelInfo(modelId)
-                const noKey = keysReady && !hasValidKey(resolveProvider(modelId))
-                return (
-                  <SelectItem key={modelId} value={modelId}>
-                    {info ? `${info.name} · ${info.costLabel}` : modelId}
-                    {noKey ? ' (sin key)' : ''}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-          {modelInfo ? (
-            <p className="text-xs text-muted-foreground">
-              Costo estimado:{' '}
-              <span className="font-mono text-foreground">{modelInfo.costLabel}</span>
-              {' · '}
-              <span className={tierTextClass(modelInfo.tier)}>{tierLabel(modelInfo.tier)}</span>
-            </p>
-          ) : null}
-        </div>
+        {modelInfo && !noKeys ? (
+          <p className="text-xs text-muted-foreground">
+            Corre con <span className="text-foreground">{modelInfo.name}</span>
+            {' · '}
+            <span className="font-mono text-foreground">{modelInfo.costLabel}</span>
+            {' · '}
+            <span className={tierTextClass(modelInfo.tier)}>{tierLabel(modelInfo.tier)}</span>
+          </p>
+        ) : null}
 
-        {missingKey ? (
+        {noKeys ? (
           <div className="flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/10 p-3">
             <KeyRound className="mt-0.5 size-4 shrink-0 text-warning" />
             <div className="space-y-1 text-xs">
-              <p className="font-medium text-warning">
-                Te falta la API key de {providerLabel(neededProvider)}
-              </p>
+              <p className="font-medium text-warning">Todavía no cargaste ninguna API key</p>
               <p className="text-muted-foreground">
-                Este modelo corre con tu propia key.{' '}
+                Los agentes corren con tu propia key, así que necesitás al menos una.{' '}
                 <Link href="/settings/keys" className="text-primary hover:underline">
                   Agregala en Configuración
-                </Link>{' '}
-                o elegí un modelo de un proveedor que ya tengas.
+                </Link>
+                .
               </p>
             </div>
           </div>
@@ -129,7 +97,7 @@ export function AgentRunForm({
         <div className="space-y-2">
           <Button
             onClick={onRun}
-            disabled={running || !allRequiredFilled || missingKey}
+            disabled={running || !allRequiredFilled || noKeys}
             className="h-11 w-full lg:h-10"
           >
             {running ? (

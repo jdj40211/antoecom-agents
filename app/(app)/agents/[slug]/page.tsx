@@ -29,7 +29,6 @@ function AgentScreen({ agent }: { agent: AgentDef }) {
       Object.entries(agent.inputSchema).map(([key, field]) => [key, field.default ?? ''])
     )
   )
-  const [selectedModel, setSelectedModel] = useState(agent.defaultModel)
   const startRun = useAgentRunStore((state) => state.startRun)
 
   const handleFieldChange = useCallback((key: string, value: string) => {
@@ -37,10 +36,11 @@ function AgentScreen({ agent }: { agent: AgentDef }) {
   }, [])
 
   const handleRun = useCallback(() => {
+    // Sin `modelOverride`: el modelo lo elige la API según los proveedores que
+    // el usuario tenga vinculados. Ver lib/agents/pick-model.ts.
     startRun(agent.slug, {
       agentSlug: agent.slug,
       input: formData,
-      modelOverride: selectedModel !== agent.defaultModel ? selectedModel : undefined,
     })
 
     // En mobile el output vive debajo del formulario: sin esto la ejecución
@@ -51,7 +51,7 @@ function AgentScreen({ agent }: { agent: AgentDef }) {
         block: 'start',
       })
     }
-  }, [agent.slug, agent.defaultModel, formData, selectedModel, startRun])
+  }, [agent.slug, formData, startRun])
 
   const Icon = agent.icon
 
@@ -83,8 +83,6 @@ function AgentScreen({ agent }: { agent: AgentDef }) {
           agent={agent}
           formData={formData}
           onFieldChange={handleFieldChange}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
           onRun={handleRun}
         />
         <OutputPanel agent={agent} onRerun={handleRun} />

@@ -12,3 +12,14 @@ export function resolveProvider(model: string): ProviderName {
   if (model.startsWith('gemini')) return 'google'
   return 'openrouter'
 }
+
+export const PROVIDER_NAMES: readonly ProviderName[] = ['anthropic', 'openai', 'google', 'openrouter']
+
+/**
+ * Type guard para los `provider` que llegan como texto suelto: la columna
+ * `user_api_keys.provider` y el store de desarrollo son strings, y sin esto
+ * había que castearlos para compararlos contra un `ProviderName`.
+ */
+export function isProviderName(value: string): value is ProviderName {
+  return (PROVIDER_NAMES as readonly string[]).includes(value)
+}

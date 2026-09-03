@@ -4,7 +4,9 @@ import { getAgent } from '@/lib/agents/catalog'
 import { executeAgent, resolveProvider, getProviderInstance } from '@/lib/agents/executor'
 import { buildPrompts } from '@/lib/agents/prompt-builder'
 import { isSupabaseConfigured } from '@/lib/supabase/is-configured'
-import { getDevKey } from '@/lib/store/dev-keys'
+import { getDevKey, getDevKeys } from '@/lib/store/dev-keys'
+import { pickModel } from '@/lib/agents/pick-model'
+import { isProviderName, type ProviderName } from '@/lib/agents/resolve-provider'
 import { getUser, unauthorizedResponse } from '@/lib/auth/dal'
 import {
   checkHourlyRateLimit,
@@ -228,12 +230,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const model = modelOverride ?? agent.defaultModel
-    const providerName = resolveProvider(model)
-
     const supabase = isSupabaseConfigured()
       ? await (await import('@/lib/supabase/server')).createClient()
       : null
+
+    // Qué proveedores puede pagar este usuario. Se consulta ANTES de fijar el
+    // modelo: `agent.defaultModel` es fijo por agente, así que elegirlo a ciegas
+    // mandaba a quien solo tiene OpenAI contra un modelo de Anthropic y moría
+    // más abajo con "no tenés API key", sin haber mirado que sí podía correrlo
+    // con otro proveedor. `modelOverride` sigue mandando cuando viene: ya quedó
+    // validado contra `allowedModels` arriba.
+    let linkedProviders: ProviderName[] = []
+
+    if (supabase) {
+      const { data: keyRows } = await supabase
+        .from('user_api_keys')
+        .select('provider')
+        .eq('user_id', user.id)
+        .eq('is_valid', true)
+
+      linkedProviders = (keyRows ?? [])
+        .map((row) => row.provider as string)
+        .filter(isProviderName)
+    } else {
+      linkedProviders = getDevKeys()
+        .filter((key) => key.isValid)
+        .map((key) => key.provider)
+        .filter(isProviderName)
+    }
+
+    const model = modelOverride ?? pickModel(agent, linkedProviders)
+    const providerName = resolveProvider(model)
 
     // Acá vivía el gate de agentes Elite: leía `community_profiles.program` y le
     // negaba siete agentes del catálogo a quien no fuera elite. Se fue junto
